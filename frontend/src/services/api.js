@@ -1,5 +1,5 @@
-// Configurado para tu servidor web local en el puerto 6767
-const BASE_URL = "http://localhost:6767/api";
+// Agrega esta línea si no está:
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:6767/api";
 
 export const fetchAPI = async (endpoint, options = {}) => {
   try {
@@ -15,7 +15,6 @@ export const fetchAPI = async (endpoint, options = {}) => {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
 
-    // Las respuestas 204 (típicas de DELETE) no traen cuerpo: no intentes parsear JSON ahí.
     if (response.status === 204) {
       return null;
     }
