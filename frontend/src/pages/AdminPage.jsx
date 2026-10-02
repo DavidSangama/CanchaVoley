@@ -17,6 +17,11 @@ const SECCIONES = [
 ];
 
 const FORM_RESERVA_VACIO = { idCliente: '', idCancha: '', idHorario: '', fecha: '' };
+const ESTADOS_PAGO = {
+  PENDIENTE_VERIFICACION: 'Pendiente de verificación',
+  REALIZADO: 'Pago realizado',
+  CANCELADO: 'Pago cancelado',
+};
 
 export function AdminPage() {
   const navigate = useNavigate();
@@ -470,11 +475,13 @@ export function AdminPage() {
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [cerrandoModalPago, setCerrandoModalPago] = useState(false);
   const [pagoEditando, setPagoEditando] = useState(null);
-  const [formPago, setFormPago] = useState({ idReserva: '', total: '' });
+  const [formPago, setFormPago] = useState({
+    idReserva: '',
+    total: '',
+    estado: 'PENDIENTE_VERIFICACION',
+  });
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [errorPagoForm, setErrorPagoForm] = useState('');
-  const [actualizandoEstadosPago, setActualizandoEstadosPago] = useState({});
-  const [erroresEstadoPago, setErroresEstadoPago] = useState({});
 
   const totalPagosRealizados = pagosRealizados.reduce((acum, p) => acum + Number(p.total || 0), 0);
   const totalPagosPendientes = pagosPendientes.reduce((acum, p) => acum + Number(p.total || 0), 0);
@@ -502,7 +509,7 @@ export function AdminPage() {
     .sort((a, b) => a.idPago - b.idPago);
 
   const abrirNuevoPago = () => {
-    setFormPago({ idReserva: '', total: '' });
+    setFormPago({ idReserva: '', total: '', estado: 'PENDIENTE_VERIFICACION' });
     setPagoEditando(null);
     setErrorPagoForm('');
     setCerrandoModalPago(false);
@@ -510,7 +517,11 @@ export function AdminPage() {
   };
 
   const abrirEditarPago = (p) => {
-    setFormPago({ idReserva: p.reserva?.idReserva || '', total: p.total });
+    setFormPago({
+      idReserva: p.reserva?.idReserva || '',
+      total: p.total,
+      estado: p.estado || 'PENDIENTE_VERIFICACION',
+    });
     setPagoEditando(p);
     setErrorPagoForm('');
     setCerrandoModalPago(false);
@@ -538,6 +549,7 @@ export function AdminPage() {
     const payload = {
       reserva: { idReserva: Number(formPago.idReserva) },
       total: Number(formPago.total),
+      ...(pagoEditando && { estado: formPago.estado }),
     };
 
     const promesa = pagoEditando
@@ -563,26 +575,6 @@ export function AdminPage() {
         console.error('Error al eliminar el pago:', err);
         window.alert('No se pudo eliminar el pago.');
       });
-  };
-
-  const actualizarEstadoPago = async (pago, nuevoEstado) => {
-    setActualizandoEstadosPago((actualizando) => ({ ...actualizando, [pago.idPago]: true }));
-    setErroresEstadoPago((errores) => ({ ...errores, [pago.idPago]: '' }));
-
-    try {
-      await PagoService.actualizarEstado(pago.idPago, nuevoEstado);
-      setPagos((listaPagos) => listaPagos.map((actual) => (
-        actual.idPago === pago.idPago ? { ...actual, estado: nuevoEstado } : actual
-      )));
-    } catch (err) {
-      console.error('Error al actualizar el estado del pago:', err);
-      setErroresEstadoPago((errores) => ({
-        ...errores,
-        [pago.idPago]: 'No se pudo actualizar el estado. Inténtalo de nuevo.',
-      }));
-    } finally {
-      setActualizandoEstadosPago((actualizando) => ({ ...actualizando, [pago.idPago]: false }));
-    }
   };
 
   return (
@@ -1105,24 +1097,7 @@ export function AdminPage() {
                           <td>{p.idPago}</td>
                           <td>{p.reserva?.idReserva}</td>
                           <td>S/ {Number(p.total)}</td>
-                          <td>
-                            <select
-                              className="admin-estado-select"
-                              aria-label={`Estado del pago ${p.idPago}`}
-                              value={p.estado || 'PENDIENTE_VERIFICACION'}
-                              disabled={actualizandoEstadosPago[p.idPago]}
-                              onChange={(e) => actualizarEstadoPago(p, e.target.value)}
-                            >
-                              <option value="PENDIENTE_VERIFICACION">Pendiente de verificación</option>
-                              <option value="REALIZADO">Pago realizado</option>
-                              <option value="CANCELADO">Pago cancelado</option>
-                            </select>
-                            {erroresEstadoPago[p.idPago] && (
-                              <small className="admin-error-estado" role="alert">
-                                {erroresEstadoPago[p.idPago]}
-                              </small>
-                            )}
-                          </td>
+                          <td>{ESTADOS_PAGO[p.estado] || ESTADOS_PAGO.PENDIENTE_VERIFICACION}</td>
                           <td>
                             <button type="button" className="admin-link-editar" onClick={() => abrirEditarPago(p)}>
                               Editar
@@ -1467,6 +1442,22 @@ export function AdminPage() {
                   onChange={(e) => setFormPago((prev) => ({ ...prev, total: e.target.value }))}
                 />
               </div>
+
+              {pagoEditando && (
+                <div className="campo-grupo">
+                  <label className="campo-label" htmlFor="estado-pago">Estado del pago</label>
+                  <select
+                    id="estado-pago"
+                    className="campo-input"
+                    value={formPago.estado}
+                    onChange={(e) => setFormPago((prev) => ({ ...prev, estado: e.target.value }))}
+                  >
+                    <option value="PENDIENTE_VERIFICACION">Pendiente de verificación</option>
+                    <option value="REALIZADO">Pago realizado</option>
+                    <option value="CANCELADO">Pago cancelado</option>
+                  </select>
+                </div>
+              )}
 
               {errorPagoForm && <span className="campo-ayuda-error">{errorPagoForm}</span>}
 

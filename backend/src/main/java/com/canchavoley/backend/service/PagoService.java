@@ -73,6 +73,9 @@ public class PagoService {
                 .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + id));
         pago.setReserva(resolverReserva(detalles).getReserva());
         pago.setTotal(detalles.getTotal());
+        if (detalles.getEstado() != null) {
+            pago.setEstado(detalles.getEstado());
+        }
         return pagoRepository.save(pago);
     }
 
