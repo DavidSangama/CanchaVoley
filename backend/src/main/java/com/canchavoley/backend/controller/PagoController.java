@@ -100,6 +100,12 @@ public class PagoController {
         return ResponseEntity.ok(pagoService.actualizarEstado(id, nuevoEstado));
     }
 
+    @PutMapping("/estado/todos")
+    public ResponseEntity<Integer> actualizarEstadoDeTodosLosPagos(
+            @RequestParam EstadoPago nuevoEstado) {
+        return ResponseEntity.ok(pagoService.actualizarEstadoDeTodos(nuevoEstado));
+    }
+
     // ==========================================
     // 2 ENDPOINTS DELETE
     // ==========================================

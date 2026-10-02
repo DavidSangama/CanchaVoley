@@ -17,6 +17,7 @@ import java.util.Base64;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminController.class)
@@ -60,6 +61,13 @@ class AdminSecurityTest {
     @Test
     void protectsAdminPaymentData() throws Exception {
         mockMvc.perform(get("/api/pagos"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void protectsBulkPaymentStatusUpdates() throws Exception {
+        mockMvc.perform(put("/api/pagos/estado/todos")
+                        .param("nuevoEstado", "REALIZADO"))
                 .andExpect(status().isUnauthorized());
     }
 

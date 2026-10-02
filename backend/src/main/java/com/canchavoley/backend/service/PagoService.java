@@ -93,6 +93,14 @@ public class PagoService {
         return pagoRepository.save(pago);
     }
 
+    @Transactional
+    public int actualizarEstadoDeTodos(EstadoPago nuevoEstado) {
+        if (nuevoEstado == null) {
+            throw new IllegalArgumentException("Selecciona un estado de pago válido.");
+        }
+        return pagoRepository.actualizarEstadoDeTodos(nuevoEstado);
+    }
+
     // --- DELETEs ---
     public void eliminarPorId(Long id) {
         pagoRepository.deleteById(id);

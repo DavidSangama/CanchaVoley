@@ -477,6 +477,9 @@ export function AdminPage() {
   // ---- SECCIÓN PAGOS ----
   const [filtroPagos, setFiltroPagos] = useState('todos'); // todos | reserva | cancha
   const [busquedaPagos, setBusquedaPagos] = useState('');
+  const [estadoMasivoPago, setEstadoMasivoPago] = useState('');
+  const [actualizandoEstadoMasivo, setActualizandoEstadoMasivo] = useState(false);
+  const [mensajeEstadoMasivo, setMensajeEstadoMasivo] = useState('');
 
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [cerrandoModalPago, setCerrandoModalPago] = useState(false);
@@ -581,6 +584,33 @@ export function AdminPage() {
         console.error('Error al eliminar el pago:', err);
         window.alert('No se pudo eliminar el pago.');
       });
+  };
+
+  const actualizarEstadoMasivo = async () => {
+    if (!estadoMasivoPago || pagos.length === 0 || actualizandoEstadoMasivo) return;
+    const estadoTexto = ESTADOS_PAGO[estadoMasivoPago];
+    const confirmar = window.confirm(
+      `¿Cambiar el estado a “${estadoTexto}” para los ${pagos.length} pagos registrados? Esta acción reemplazará el estado actual de todos ellos.`
+    );
+    if (!confirmar) return;
+
+    setActualizandoEstadoMasivo(true);
+    setMensajeEstadoMasivo('');
+    try {
+      const actualizados = await PagoService.actualizarEstadoDeTodos(estadoMasivoPago);
+      setPagos((actuales) => actuales.map((pago) => ({ ...pago, estado: estadoMasivoPago })));
+      setMensajeEstadoMasivo(`Estado actualizado para ${actualizados} pagos.`);
+    } catch (err) {
+      console.error('Error al actualizar el estado de todos los pagos:', err);
+      if (err.status === 401) {
+        sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
+        navigate('/');
+      } else {
+        setMensajeEstadoMasivo('No se pudo actualizar el estado de todos los pagos. Intenta de nuevo.');
+      }
+    } finally {
+      setActualizandoEstadoMasivo(false);
+    }
   };
 
   return (
@@ -1049,6 +1079,36 @@ export function AdminPage() {
                     <strong>S/ {ticketPromedio}</strong>
                     <small>por pago verificado</small>
                   </div>
+                </div>
+
+                <div className="admin-estado-masivo">
+                  <div>
+                    <strong>Estado para todos los pagos</strong>
+                    <span>Aplica a los {pagos.length} pagos registrados actualmente.</span>
+                  </div>
+                  <select
+                    className="campo-input"
+                    aria-label="Nuevo estado para todos los pagos"
+                    value={estadoMasivoPago}
+                    onChange={(e) => setEstadoMasivoPago(e.target.value)}
+                    disabled={actualizandoEstadoMasivo}
+                  >
+                    <option value="">Selecciona un estado</option>
+                    <option value="PENDIENTE_VERIFICACION">Pendiente de verificación</option>
+                    <option value="REALIZADO">Pago realizado</option>
+                    <option value="CANCELADO">Pago cancelado</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="admin-btn-primario"
+                    onClick={actualizarEstadoMasivo}
+                    disabled={!estadoMasivoPago || pagos.length === 0 || actualizandoEstadoMasivo}
+                  >
+                    {actualizandoEstadoMasivo ? 'Actualizando…' : 'Aplicar a todos'}
+                  </button>
+                  {mensajeEstadoMasivo && (
+                    <p className="admin-estado-masivo-mensaje" role="status">{mensajeEstadoMasivo}</p>
+                  )}
                 </div>
 
                 <div className="admin-filtros">
