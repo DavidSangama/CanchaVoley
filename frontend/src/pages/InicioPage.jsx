@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { iniciarSesionAdmin } from '../services/api';
 import './InicioPage.css';
 
 const getImageUrl = (name) => {
@@ -21,6 +22,7 @@ export default function InicioPage() {
   const [cerrandoLoginModal, setCerrandoLoginModal] = useState(false);
   const [loginAdmin, setLoginAdmin] = useState({ usuario: '', clave: '' });
   const [errorLoginAdmin, setErrorLoginAdmin] = useState('');
+  const [verificandoLoginAdmin, setVerificandoLoginAdmin] = useState(false);
 
   useEffect(() => {
     const ids = ['inicio', 'canchas', 'horarios'];
@@ -165,14 +167,23 @@ export default function InicioPage() {
     }, 200);
   };
 
-  const intentarLoginAdmin = (e) => {
+  const intentarLoginAdmin = async (e) => {
     e.preventDefault();
-    if (loginAdmin.usuario === 'admin' && loginAdmin.clave === '1234') {
-      sessionStorage.setItem('admin_autenticado', 'true');
+    setVerificandoLoginAdmin(true);
+    setErrorLoginAdmin('');
+    try {
+      await iniciarSesionAdmin(loginAdmin.usuario.trim(), loginAdmin.clave);
       setMostrarLoginAdmin(false);
       navigate('/admin');
-    } else {
-      setErrorLoginAdmin('Usuario o contraseña incorrectos.');
+    } catch (error) {
+      console.error('Error al autenticar administrador:', error);
+      if (error.status === 401) {
+        setErrorLoginAdmin('Usuario o contraseña incorrectos.');
+      } else {
+        setErrorLoginAdmin('No se pudo conectar con el servidor. Inténtalo de nuevo.');
+      }
+    } finally {
+      setVerificandoLoginAdmin(false);
     }
   };
 
@@ -476,8 +487,8 @@ export default function InicioPage() {
 
               {errorLoginAdmin && <span className="campo-ayuda-error">{errorLoginAdmin}</span>}
 
-              <button type="submit" className="btn btn-primario modal-btn">
-                Ingresar
+              <button type="submit" className="btn btn-primario modal-btn" disabled={verificandoLoginAdmin}>
+                {verificandoLoginAdmin ? 'Verificando…' : 'Ingresar'}
               </button>
             </form>
           </div>

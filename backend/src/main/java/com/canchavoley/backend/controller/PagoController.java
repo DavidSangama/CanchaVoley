@@ -2,6 +2,7 @@ package com.canchavoley.backend.controller;
 
 import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
+import com.canchavoley.backend.dto.PagoCreadoResponse;
 import com.canchavoley.backend.service.PagoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -62,8 +63,11 @@ public class PagoController {
 
     // POST 1: Registrar un pago
     @PostMapping
-    public ResponseEntity<Pago> crearPago(@RequestBody Pago pago) {
-        return new ResponseEntity<>(pagoService.guardar(pago), HttpStatus.CREATED);
+    public ResponseEntity<PagoCreadoResponse> crearPago(@RequestBody Pago pago) {
+        Pago pagoGuardado = pagoService.guardar(pago);
+        return new ResponseEntity<>(
+                new PagoCreadoResponse(pagoGuardado.getIdPago(), pagoGuardado.getReserva().getIdReserva()),
+                HttpStatus.CREATED);
     }
 
     // POST 2: Registrar pagos en lote

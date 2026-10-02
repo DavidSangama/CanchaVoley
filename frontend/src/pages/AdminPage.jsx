@@ -5,6 +5,7 @@ import { ClienteService } from '../services/ClienteService';
 import { ReservaService } from '../services/ReservaService';
 import { PagoService } from '../services/PagoService';
 import { HorarioService } from '../services/HorarioService';
+import { ADMIN_AUTHORIZATION_KEY } from '../services/api';
 import './AdminPage.css';
 
 const SECCIONES = [
@@ -36,7 +37,7 @@ export function AdminPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (sessionStorage.getItem('admin_autenticado') !== 'true') {
+    if (!sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY)) {
       navigate('/');
     }
   }, [navigate]);
@@ -60,17 +61,22 @@ export function AdminPage() {
       })
       .catch((err) => {
         console.error('Error al cargar datos del admin:', err);
+        if (err.status === 401) {
+          sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
+          navigate('/');
+          return;
+        }
         setError('No se pudieron cargar los datos del panel.');
       })
       .finally(() => setCargando(false));
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     recargarDatos();
   }, [recargarDatos]);
 
   const cerrarSesion = () => {
-    sessionStorage.removeItem('admin_autenticado');
+    sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
     navigate('/');
   };
 

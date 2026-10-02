@@ -102,8 +102,8 @@ export function ReservaPage() {
         if (cancelado) return;
         setHorarios(listaHorarios);
         const ocupados = reservasDelDia
-          .filter((r) => r.cancha?.idCancha === canchaSeleccionada)
-          .map((r) => r.horario?.idHorario);
+          .filter((r) => r.idCancha === canchaSeleccionada)
+          .map((r) => r.idHorario);
         setHorariosOcupados(ocupados);
       })
       .catch((err) => {

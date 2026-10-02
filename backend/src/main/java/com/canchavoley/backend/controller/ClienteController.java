@@ -1,6 +1,7 @@
 package com.canchavoley.backend.controller;
 
 import com.canchavoley.backend.model.Cliente;
+import com.canchavoley.backend.dto.ClienteIdResponse;
 import com.canchavoley.backend.service.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -36,9 +37,9 @@ public class ClienteController {
 
     // GET 3: Buscar cliente por DNI
     @GetMapping("/dni/{dni}")
-    public ResponseEntity<Cliente> buscarPorDni(@PathVariable String dni) {
+    public ResponseEntity<ClienteIdResponse> buscarPorDni(@PathVariable String dni) {
         return clienteService.obtenerPorDni(dni)
-                .map(ResponseEntity::ok)
+                .map(cliente -> ResponseEntity.ok(new ClienteIdResponse(cliente.getIdCliente())))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -60,8 +61,9 @@ public class ClienteController {
 
     // POST 1: Registrar un cliente individual
     @PostMapping
-    public ResponseEntity<Cliente> crearCliente(@RequestBody Cliente cliente) {
-        return new ResponseEntity<>(clienteService.guardar(cliente), HttpStatus.CREATED);
+    public ResponseEntity<ClienteIdResponse> crearCliente(@RequestBody Cliente cliente) {
+        Cliente clienteGuardado = clienteService.guardar(cliente);
+        return new ResponseEntity<>(new ClienteIdResponse(clienteGuardado.getIdCliente()), HttpStatus.CREATED);
     }
 
     // POST 2: Registrar varios clientes en lote

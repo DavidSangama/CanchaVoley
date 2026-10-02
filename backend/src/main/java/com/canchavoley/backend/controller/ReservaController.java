@@ -1,6 +1,8 @@
 package com.canchavoley.backend.controller;
 
 import com.canchavoley.backend.model.Reserva;
+import com.canchavoley.backend.dto.ReservaCreadaResponse;
+import com.canchavoley.backend.dto.ReservaDisponibilidadResponse;
 import com.canchavoley.backend.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -38,9 +40,13 @@ public class ReservaController {
 
     // GET 3: Buscar reservas por fecha (formato YYYY-MM-DD)
     @GetMapping("/fecha/{fecha}")
-    public List<Reserva> buscarPorFecha(
+    public List<ReservaDisponibilidadResponse> buscarPorFecha(
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
-        return reservaService.obtenerPorFecha(fecha);
+        return reservaService.obtenerPorFecha(fecha).stream()
+                .map(reserva -> new ReservaDisponibilidadResponse(
+                        reserva.getCancha().getIdCancha(),
+                        reserva.getHorario().getIdHorario()))
+                .toList();
     }
 
     // GET 4: Buscar reservas asociadas a un cliente por su ID
@@ -61,8 +67,9 @@ public class ReservaController {
 
     // POST 1: Crear una reserva
     @PostMapping
-    public ResponseEntity<Reserva> crearReserva(@RequestBody Reserva reserva) {
-        return new ResponseEntity<>(reservaService.guardar(reserva), HttpStatus.CREATED);
+    public ResponseEntity<ReservaCreadaResponse> crearReserva(@RequestBody Reserva reserva) {
+        Reserva reservaGuardada = reservaService.guardar(reserva);
+        return new ResponseEntity<>(new ReservaCreadaResponse(reservaGuardada.getIdReserva()), HttpStatus.CREATED);
     }
 
     // POST 2: Crear reservas en lote
