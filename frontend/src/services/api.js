@@ -1,5 +1,5 @@
 // Agrega esta línea si no está:
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:6767/api";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 export const fetchAPI = async (endpoint, options = {}) => {
   try {
