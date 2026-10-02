@@ -13,12 +13,12 @@ public class CorsConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
+        registry.addMapping("/**") // Permite CORS en todos los endpoints (/api/..., etc.)
                 .allowedOriginPatterns(
                         "http://localhost:5173",
                         "http://127.0.0.1:5173",
-                        "https://cancha-voley.vercel.app",
-                        "https://*.vercel.app", // <-- Permite cualquier URL de preview en Vercel
+                        "https://*.vercel.app",             // <--- Acepta TODAS las vistas previas y subdominios de Vercel
+                        "https://cancha-voley.vercel.app",   // Dominio principal
                         frontendUrl
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
