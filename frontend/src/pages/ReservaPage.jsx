@@ -214,7 +214,7 @@ export function ReservaPage() {
 
   const hacerOtraReserva = () => {
     setPasoActual(1);
-    setFechaSeleccionada(28);
+    setFechaSeleccionada(null);
     setCanchaSeleccionada(null);
     setHorarioSeleccionado(null);
     setDatosCliente({ nombre: '', apellido: '', dni: '', telefono: '' });
@@ -231,8 +231,6 @@ export function ReservaPage() {
       setErrorCancelacion('No se encontraron los datos necesarios para cancelar la solicitud. Contacta al administrador.');
       return;
     }
-
-    if (!window.confirm('¿Quieres cancelar la solicitud de pago y liberar este horario?')) return;
 
     setCancelandoSolicitud(true);
     setErrorCancelacion(null);
