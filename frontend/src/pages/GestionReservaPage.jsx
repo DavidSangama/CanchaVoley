@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Footer } from '../components/Footer';
 import { Navbar } from '../components/Navbar';
 import { HorarioService } from '../services/HorarioService';
@@ -18,9 +18,9 @@ const obtenerFechaLocal = () => {
 };
 
 export function GestionReservaPage() {
-  const { id } = useParams();
   const tokenGestion = window.location.hash.slice(1);
-  const [reserva, setReserva] = useState(null);
+  const [reservas, setReservas] = useState([]);
+  const [reservaSeleccionada, setReservaSeleccionada] = useState(null);
   const [fechaSeleccionada, setFechaSeleccionada] = useState('');
   const [idHorarioSeleccionado, setIdHorarioSeleccionado] = useState('');
   const [horarios, setHorarios] = useState([]);
@@ -33,34 +33,28 @@ export function GestionReservaPage() {
     tokenGestion ? '' : 'Este enlace no contiene la clave privada. Usa el enlace completo que guardaste al reservar.'
   ));
   const [mensaje, setMensaje] = useState('');
-  const [cancelada, setCancelada] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
 
-    if (!tokenGestion) {
-      return undefined;
-    }
+    if (!tokenGestion) return undefined;
 
     Promise.all([
-      ReservaService.obtenerGestion(id, tokenGestion),
+      ReservaService.obtenerReservasCliente(tokenGestion),
       HorarioService.obtenerTodos(),
     ])
-      .then(([datosReserva, listaHorarios]) => {
+      .then(([reservasCliente, listaHorarios]) => {
         if (cancelado) return;
-        setReserva(datosReserva);
-        setFechaSeleccionada(datosReserva.fecha);
-        setIdHorarioSeleccionado(String(datosReserva.idHorario));
+        setReservas(reservasCliente);
         setHorarios(listaHorarios);
-        setCargandoDisponibilidad(true);
         setError('');
       })
       .catch((err) => {
-        console.error('Error al cargar la reserva para gestionarla:', err);
+        console.error('Error al cargar las reservas del cliente:', err);
         if (!cancelado) {
           setError(err.status === 404
-            ? 'No se encontró esta reserva o el enlace privado no es válido.'
-            : 'No se pudo cargar la reserva. Intenta de nuevo más tarde.');
+            ? 'No se encontraron reservas para este enlace privado.'
+            : 'No se pudieron cargar tus reservas. Intenta de nuevo más tarde.');
         }
       })
       .finally(() => {
@@ -70,10 +64,11 @@ export function GestionReservaPage() {
     return () => {
       cancelado = true;
     };
-  }, [id, tokenGestion]);
+  }, [tokenGestion]);
 
   useEffect(() => {
-    if (!reserva || !fechaSeleccionada) return undefined;
+    if (!reservaSeleccionada || !fechaSeleccionada
+      || reservaSeleccionada.estadoPago !== 'PENDIENTE_VERIFICACION') return undefined;
 
     let cancelado = false;
     ReservaService.obtenerPorFecha(fechaSeleccionada)
@@ -82,8 +77,8 @@ export function GestionReservaPage() {
         setHorariosOcupados(
           reservasDelDia
             .filter((otraReserva) => (
-              otraReserva.idCancha === reserva.idCancha
-              && otraReserva.idReserva !== reserva.idReserva
+              otraReserva.idCancha === reservaSeleccionada.idCancha
+              && otraReserva.idReserva !== reservaSeleccionada.idReserva
             ))
             .map((otraReserva) => otraReserva.idHorario)
         );
@@ -100,11 +95,27 @@ export function GestionReservaPage() {
     return () => {
       cancelado = true;
     };
-  }, [reserva, fechaSeleccionada]);
+  }, [reservaSeleccionada, fechaSeleccionada]);
+
+  const abrirGestion = (reserva) => {
+    setReservaSeleccionada(reserva);
+    setFechaSeleccionada(reserva.fecha);
+    setIdHorarioSeleccionado(String(reserva.idHorario));
+    setError('');
+    setMensaje('');
+    setCargandoDisponibilidad(reserva.estadoPago === 'PENDIENTE_VERIFICACION');
+  };
+
+  const cerrarGestion = () => {
+    if (guardando || cancelando) return;
+    setReservaSeleccionada(null);
+    setError('');
+    setMensaje('');
+  };
 
   const reprogramar = async (event) => {
     event.preventDefault();
-    if (!fechaSeleccionada || !idHorarioSeleccionado) {
+    if (!fechaSeleccionada || !idHorarioSeleccionado || !reservaSeleccionada) {
       setError('Selecciona una fecha y un horario disponibles.');
       return;
     }
@@ -114,35 +125,41 @@ export function GestionReservaPage() {
     setMensaje('');
     try {
       const reservaActualizada = await ReservaService.reprogramarComoCliente(
-        id,
+        reservaSeleccionada.idReserva,
         tokenGestion,
         fechaSeleccionada,
         Number(idHorarioSeleccionado)
       );
-      setReserva(reservaActualizada);
+      setReservas((actuales) => actuales.map((reserva) => (
+        reserva.idReserva === reservaActualizada.idReserva ? reservaActualizada : reserva
+      )));
+      setReservaSeleccionada(reservaActualizada);
       setIdHorarioSeleccionado(String(reservaActualizada.idHorario));
       setMensaje('Tu reserva se reprogramó correctamente. El monto solicitado se actualizó al precio del nuevo horario.');
     } catch (err) {
       console.error('Error al reprogramar la reserva:', err);
-      if (err.status === 409) {
-        setError('No se pudo reprogramar: el horario está ocupado o el pago ya fue verificado. Actualiza la disponibilidad o contacta al administrador.');
-      } else {
-        setError('No se pudo reprogramar la reserva. Intenta de nuevo.');
-      }
+      setError(err.status === 409
+        ? 'No se pudo reprogramar: el horario está ocupado o el pago ya fue verificado. Actualiza la disponibilidad o contacta al administrador.'
+        : 'No se pudo reprogramar la reserva. Intenta de nuevo.');
     } finally {
       setGuardando(false);
     }
   };
 
   const cancelar = async () => {
+    if (!reservaSeleccionada) return;
     setCancelando(true);
     setError('');
     setMensaje('');
     try {
-      await ReservaService.cancelarSolicitud(id, tokenGestion);
-      setCancelada(true);
+      await ReservaService.cancelarSolicitud(reservaSeleccionada.idReserva, tokenGestion);
+      setReservas((actuales) => actuales.filter(
+        (reserva) => reserva.idReserva !== reservaSeleccionada.idReserva
+      ));
+      setReservaSeleccionada(null);
+      setMensaje('La reserva se canceló y el horario quedó disponible.');
     } catch (err) {
-      console.error('Error al cancelar la reserva desde su enlace privado:', err);
+      console.error('Error al cancelar la reserva desde el enlace privado:', err);
       setError(err.status === 409
         ? 'El pago ya fue realizado; para cancelar, comunícate con el administrador.'
         : 'No se pudo cancelar la reserva. Intenta de nuevo o contacta al administrador.');
@@ -152,128 +169,184 @@ export function GestionReservaPage() {
   };
 
   const fechaMinima = obtenerFechaLocal();
-  const pagoPendiente = reserva?.estadoPago === 'PENDIENTE_VERIFICACION';
+  const pagoPendiente = reservaSeleccionada?.estadoPago === 'PENDIENTE_VERIFICACION';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
-      <main className="flex-1 w-full max-w-2xl mx-auto px-5 py-12">
+      <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-12">
         <section className="rounded-2xl bg-white p-6 sm:p-10 shadow-sm border border-slate-100">
           {cargando ? (
-            <p className="text-center text-slate-600" role="status">Cargando tu reserva…</p>
-          ) : error && !reserva ? (
+            <p className="text-center text-slate-600" role="status">Cargando tus reservas…</p>
+          ) : error && reservas.length === 0 ? (
             <div className="text-center">
               <h1 className="text-2xl font-bold text-slate-900 mb-3">No pudimos abrir este enlace</h1>
               <p className="text-red-700 mb-6" role="alert">{error}</p>
               <Link to="/" className="text-blue-700 font-semibold hover:underline">Volver al inicio</Link>
             </div>
-          ) : cancelada ? (
-            <div className="text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-3xl">✓</div>
-              <h1 className="text-2xl font-extrabold text-slate-900 mb-3">Reserva cancelada</h1>
-              <p className="text-slate-600 mb-6">Se canceló la solicitud y el horario quedó disponible.</p>
-              <Link to="/reservar" className="inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700">
-                Hacer otra reserva
-              </Link>
-            </div>
-          ) : reserva && (
+          ) : (
             <>
               <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">Gestión privada</p>
-              <h1 className="text-3xl font-extrabold text-slate-900 mb-3">Tu reserva</h1>
-              <p className="mb-6 text-slate-600">Este enlace privado permite consultar, cambiar o cancelar esta reserva.</p>
+              <h1 className="text-3xl font-extrabold text-slate-900 mb-3">Mis reservas</h1>
+              <p className="mb-8 text-slate-600">Aquí puedes consultar todas tus reservas. Selecciona una para cambiarla o cancelarla.</p>
 
-              <div className="mb-8 rounded-xl bg-slate-50 p-5">
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-                  <dt className="text-slate-500">Estado del pago</dt>
-                  <dd className="text-right font-semibold text-slate-900">{ESTADOS_PAGO[reserva.estadoPago] || 'Estado desconocido'}</dd>
-                  <dt className="text-slate-500">Cancha</dt>
-                  <dd className="text-right font-semibold text-slate-900">Cancha {reserva.numeroCancha}</dd>
-                  <dt className="text-slate-500">Fecha</dt>
-                  <dd className="text-right font-semibold text-slate-900">{reserva.fecha}</dd>
-                  <dt className="text-slate-500">Horario</dt>
-                  <dd className="text-right font-semibold text-slate-900">{reserva.hora?.slice(0, 5)}</dd>
-                  <dt className="text-slate-500">Monto solicitado</dt>
-                  <dd className="text-right font-bold text-blue-700">S/ {Number(reserva.precio)}</dd>
-                </dl>
-              </div>
+              {mensaje && <p className="mb-6 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800" role="status">{mensaje}</p>}
+              {error && <p className="mb-6 text-sm text-red-700" role="alert">{error}</p>}
 
-              {pagoPendiente ? (
-                <form className="space-y-5" onSubmit={reprogramar}>
-                  <h2 className="text-xl font-bold text-slate-900">Reprogramar reserva</h2>
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Nueva fecha
-                    <input
-                      type="date"
-                      min={fechaMinima}
-                      value={fechaSeleccionada}
-                      onChange={(event) => {
-                        setCargandoDisponibilidad(true);
-                        setFechaSeleccionada(event.target.value);
-                        setIdHorarioSeleccionado('');
-                        setMensaje('');
-                      }}
-                      className="mt-2 block w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"
-                      required
-                    />
-                  </label>
-
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Nuevo horario · Cancha {reserva.numeroCancha}
-                    <select
-                      value={idHorarioSeleccionado}
-                      onChange={(event) => setIdHorarioSeleccionado(event.target.value)}
-                      className="mt-2 block w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"
-                      required
-                      disabled={cargandoDisponibilidad}
-                    >
-                      <option value="">
-                        {cargandoDisponibilidad ? 'Consultando disponibilidad…' : 'Selecciona un horario'}
-                      </option>
-                      {horarios
-                        .filter((horario) => !horariosOcupados.includes(horario.idHorario))
-                        .map((horario) => (
-                          <option key={horario.idHorario} value={horario.idHorario}>
-                            {horario.hora?.slice(0, 5)} · S/ {Number(horario.precio)}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={guardando || cargandoDisponibilidad || !idHorarioSeleccionado}
-                    className="w-full rounded-xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {guardando ? 'Guardando cambios…' : 'Guardar nueva fecha y horario'}
-                  </button>
-                </form>
+              {reservas.length === 0 ? (
+                <div className="rounded-xl bg-slate-50 p-8 text-center">
+                  <p className="mb-5 text-slate-600">No tienes reservas activas en este momento.</p>
+                  <Link to="/reservar" className="inline-flex rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700">
+                    Hacer una reserva
+                  </Link>
+                </div>
               ) : (
-                <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-                  Cuando el pago ya fue verificado, los cambios de fecha u horario deben coordinarse con el administrador.
-                </p>
+                <div className="space-y-4">
+                  {reservas.map((reserva) => (
+                    <article key={reserva.idReserva} className="flex flex-col gap-5 rounded-xl border border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">Cancha {reserva.numeroCancha}</h2>
+                        <p className="mt-1 text-sm text-slate-600">{reserva.fecha} · {reserva.hora?.slice(0, 5)}</p>
+                        <p className="mt-2 text-sm font-semibold text-blue-700">
+                          {ESTADOS_PAGO[reserva.estadoPago] || 'Pago no registrado'} · S/ {Number(reserva.precio)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => abrirGestion(reserva)}
+                        className="shrink-0 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+                      >
+                        Gestionar reserva
+                      </button>
+                    </article>
+                  ))}
+                </div>
               )}
-
-              {error && <p className="mt-5 text-sm text-red-700" role="alert">{error}</p>}
-              {mensaje && <p className="mt-5 text-sm text-emerald-700" role="status">{mensaje}</p>}
-
-              <div className="mt-8 border-t border-slate-100 pt-6">
-                <button
-                  type="button"
-                  onClick={cancelar}
-                  disabled={cancelando || reserva.estadoPago === 'REALIZADO'}
-                  className="font-semibold text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {cancelando ? 'Cancelando reserva…' : 'Cancelar esta reserva'}
-                </button>
-                {reserva.estadoPago === 'REALIZADO' && (
-                  <p className="mt-2 text-sm text-slate-500">Para cancelar un pago realizado, contacta al administrador.</p>
-                )}
-              </div>
             </>
           )}
         </section>
       </main>
       <Footer />
+
+      {reservaSeleccionada && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) cerrarGestion();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dialog-title"
+            className="my-auto max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8"
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <p className="mb-1 text-sm font-semibold uppercase tracking-wide text-blue-700">Cancha {reservaSeleccionada.numeroCancha}</p>
+                <h2 id="dialog-title" className="text-2xl font-extrabold text-slate-900">Configurar reserva</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={cerrarGestion}
+                className="rounded-lg px-3 py-1 text-2xl text-slate-500 hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
+
+            <dl className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-slate-50 p-4 text-sm">
+              <dt className="text-slate-500">Fecha actual</dt>
+              <dd className="text-right font-semibold text-slate-900">{reservaSeleccionada.fecha}</dd>
+              <dt className="text-slate-500">Horario actual</dt>
+              <dd className="text-right font-semibold text-slate-900">{reservaSeleccionada.hora?.slice(0, 5)}</dd>
+              <dt className="text-slate-500">Estado del pago</dt>
+              <dd className="text-right font-semibold text-slate-900">{ESTADOS_PAGO[reservaSeleccionada.estadoPago] || 'Pago no registrado'}</dd>
+              <dt className="text-slate-500">Monto solicitado</dt>
+              <dd className="text-right font-bold text-blue-700">S/ {Number(reservaSeleccionada.precio)}</dd>
+            </dl>
+
+            {pagoPendiente ? (
+              <form className="space-y-4" onSubmit={reprogramar}>
+                <h3 className="text-lg font-bold text-slate-900">Cambiar fecha y horario</h3>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Nueva fecha
+                  <input
+                    type="date"
+                    min={fechaMinima}
+                    value={fechaSeleccionada}
+                    onChange={(event) => {
+                      setCargandoDisponibilidad(true);
+                      setFechaSeleccionada(event.target.value);
+                      setIdHorarioSeleccionado('');
+                      setMensaje('');
+                    }}
+                    className="mt-2 block w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"
+                    required
+                  />
+                </label>
+
+                <label className="block text-sm font-semibold text-slate-700">
+                  Nuevo horario
+                  <select
+                    value={idHorarioSeleccionado}
+                    onChange={(event) => setIdHorarioSeleccionado(event.target.value)}
+                    className="mt-2 block w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"
+                    required
+                    disabled={cargandoDisponibilidad}
+                  >
+                    <option value="">
+                      {cargandoDisponibilidad ? 'Consultando disponibilidad…' : 'Selecciona un horario'}
+                    </option>
+                    {horarios
+                      .filter((horario) => !horariosOcupados.includes(horario.idHorario))
+                      .map((horario) => (
+                        <option key={horario.idHorario} value={horario.idHorario}>
+                          {horario.hora?.slice(0, 5)} · S/ {Number(horario.precio)}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={guardando || cargandoDisponibilidad || !idHorarioSeleccionado}
+                  className="w-full rounded-xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {guardando ? 'Guardando cambios…' : 'Guardar cambios'}
+                </button>
+              </form>
+            ) : (
+              <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+                Los cambios de fecha u horario deben coordinarse con el administrador cuando el pago ya fue verificado.
+              </p>
+            )}
+
+            {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
+            {mensaje && <p className="mt-4 text-sm text-emerald-700" role="status">{mensaje}</p>}
+
+            <div className="mt-6 flex flex-col-reverse justify-between gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={cancelar}
+                disabled={cancelando || guardando || reservaSeleccionada.estadoPago !== 'PENDIENTE_VERIFICACION'}
+                className="font-semibold text-red-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {cancelando ? 'Cancelando reserva…' : 'Cancelar esta reserva'}
+              </button>
+              <button
+                type="button"
+                onClick={cerrarGestion}
+                disabled={guardando || cancelando}
+                className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cerrar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

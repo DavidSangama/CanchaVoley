@@ -83,6 +83,12 @@ public class ReservaController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/gestion/cliente")
+    public ResponseEntity<List<ReservaGestionResponse>> obtenerReservasDelCliente(
+            @RequestHeader("X-Reservation-Token") String tokenGestion) {
+        return ResponseEntity.ok(reservaService.obtenerReservasCliente(tokenGestion));
+    }
+
     @GetMapping("/{id}/gestion")
     public ResponseEntity<ReservaGestionResponse> obtenerGestionCliente(
             @PathVariable Long id,

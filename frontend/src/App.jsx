@@ -19,7 +19,7 @@ function App() {
         <Route path="/contacto" element={<ContactoPage />} />
         <Route path="/reservar" element={<ReservaPage />} />
         <Route path="/confirmacion" element={<ConfirmacionPage />} />
-        <Route path="/mis-reservas/:id" element={<GestionReservaPage />} />
+        <Route path="/mis-reservas/:id?" element={<GestionReservaPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </BrowserRouter>

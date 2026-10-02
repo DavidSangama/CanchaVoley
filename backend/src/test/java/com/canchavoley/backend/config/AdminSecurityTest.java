@@ -79,6 +79,13 @@ class AdminSecurityTest {
     }
 
     @Test
+    void permitsTokenBasedCustomerReservationListWithoutAdminCredentials() throws Exception {
+        mockMvc.perform(get("/api/reservas/gestion/cliente")
+                        .header("X-Reservation-Token", "test-token"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void permitsTokenBasedCustomerReschedulingWithoutAdminCredentials() throws Exception {
         mockMvc.perform(patch("/api/reservas/1/gestion")
                         .contentType(MediaType.APPLICATION_JSON)

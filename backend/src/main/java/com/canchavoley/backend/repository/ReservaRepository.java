@@ -17,10 +17,14 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     // Listar reservas por ID de cliente
     List<Reserva> findByClienteIdCliente(Long idCliente);
 
+    List<Reserva> findByClienteIdClienteOrderByFechaDescIdReservaDesc(Long idCliente);
+
     // Listar reservas por ID de cancha
     List<Reserva> findByCanchaIdCancha(Long idCancha);
 
     Optional<Reserva> findByIdReservaAndTokenCancelacionHash(Long idReserva, String tokenCancelacionHash);
+
+    Optional<Reserva> findByTokenCancelacionHash(String tokenCancelacionHash);
 
     boolean existsByFechaAndCanchaIdCanchaAndHorarioIdHorarioAndIdReservaNot(
             LocalDate fecha,

@@ -237,7 +237,7 @@ export function ReservaPage() {
   };
 
   const obtenerEnlaceGestion = () => (
-    `${window.location.origin}/mis-reservas/${datosConfirmacion.idReserva}#${datosConfirmacion.tokenGestion}`
+    `${window.location.origin}/mis-reservas#${datosConfirmacion.tokenGestion}`
   );
 
   const copiarEnlaceGestion = async () => {
@@ -317,7 +317,7 @@ export function ReservaPage() {
               <div className="confirmacion-acciones" style={{ marginBottom: '20px' }}>
                 <Link
                   className="btn btn-secundario"
-                  to={`/mis-reservas/${datosConfirmacion.idReserva}#${datosConfirmacion.tokenGestion}`}
+                  to={`/mis-reservas#${datosConfirmacion.tokenGestion}`}
                 >
                   Gestionar reserva
                 </Link>

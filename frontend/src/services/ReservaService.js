@@ -15,6 +15,10 @@ export const ReservaService = {
     fetchAPI(`/reservas/${id}/gestion`, {
       headers: { "X-Reservation-Token": tokenGestion },
     }),
+  obtenerReservasCliente: (tokenGestion) =>
+    fetchAPI("/reservas/gestion/cliente", {
+      headers: { "X-Reservation-Token": tokenGestion },
+    }),
   reprogramarComoCliente: (id, tokenGestion, fecha, idHorario) =>
     fetchAPI(`/reservas/${id}/gestion`, {
       method: "PATCH",
