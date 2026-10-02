@@ -175,8 +175,8 @@ export function GestionReservaPage() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
-      <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-12">
-        <section className="rounded-2xl bg-white p-6 sm:p-10 shadow-sm border border-slate-100">
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 sm:px-5 sm:py-12">
+        <section className="rounded-2xl bg-white p-5 sm:p-10 shadow-sm border border-slate-100">
           {cargando ? (
             <p className="text-center text-slate-600" role="status">Cargando tus reservas…</p>
           ) : error && reservas.length === 0 ? (
@@ -240,7 +240,7 @@ export function GestionReservaPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="dialog-title"
-            className="my-auto max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8"
+            className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-8"
           >
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>

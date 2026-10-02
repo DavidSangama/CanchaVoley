@@ -622,3 +622,211 @@
   cursor: wait;
   opacity: 0.65;
 }
+
+@media (max-width: 700px) {
+  .reserva-main {
+    padding: 24px 16px;
+  }
+
+  .reserva-header h1 {
+    font-size: 27px;
+  }
+
+  .reserva-header p {
+    margin-bottom: 22px;
+  }
+
+  .stepper {
+    gap: 6px;
+    margin-bottom: 22px;
+  }
+
+  .step-item {
+    gap: 6px;
+  }
+
+  .step-num {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+  }
+
+  .step-text {
+    font-size: 12px;
+  }
+
+  .step-linea {
+    min-width: 8px;
+  }
+
+  .reserva-grid {
+    min-width: 0;
+    gap: 16px;
+  }
+
+  .reserva-card-paso {
+    min-width: 0;
+    padding: 22px 18px;
+    border-radius: 16px;
+  }
+
+  .bloque-seleccion {
+    margin-bottom: 26px;
+  }
+
+  .calendario-box {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .calendario-grid {
+    gap: 5px;
+  }
+
+  .calendario-dias-semana {
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .cal-dia {
+    border-radius: 9px;
+    font-size: 13px;
+  }
+
+  .canchas-grid-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .cancha-opcion {
+    padding: 13px 8px;
+  }
+
+  .horarios-grid-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .horario-slot {
+    padding: 14px 6px;
+  }
+
+  .horario-leyenda {
+    gap: 10px 14px;
+  }
+
+  .reserva-resumen-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .reserva-acciones {
+    gap: 10px;
+  }
+
+  .reserva-acciones .btn-continuar {
+    width: 100%;
+  }
+
+  .acciones-dos-botones {
+    flex-direction: column-reverse;
+  }
+
+  .acciones-dos-botones > button,
+  .acciones-dos-botones > a {
+    width: 100%;
+  }
+
+  .confirmacion-card {
+    margin: 12px auto;
+    padding: 26px 18px;
+    border-radius: 16px;
+  }
+
+  .confirmacion-card h1 {
+    font-size: 23px;
+  }
+
+  .confirmacion-detalle {
+    padding: 16px 13px;
+  }
+
+  .confirmacion-fila,
+  .resumen-fila {
+    gap: 12px;
+  }
+
+  .confirmacion-fila strong,
+  .resumen-fila strong {
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .total-a-pagar {
+    gap: 12px;
+    padding: 15px;
+  }
+
+  .total-a-pagar strong {
+    font-size: 19px;
+    white-space: nowrap;
+  }
+
+  .confirmacion-acciones {
+    flex-direction: column;
+  }
+
+  .confirmacion-acciones > .btn {
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .reserva-main {
+    padding-inline: 12px;
+  }
+
+  .reserva-card-paso {
+    padding: 18px 13px;
+  }
+
+  .stepper {
+    gap: 4px;
+  }
+
+  .step-item {
+    gap: 4px;
+  }
+
+  .step-text {
+    font-size: 11px;
+  }
+
+  .step-num {
+    width: 27px;
+    height: 27px;
+    flex-basis: 27px;
+    font-size: 12px;
+  }
+
+  .step-linea {
+    max-width: 22px;
+  }
+}
+
+@media (max-width: 440px) {
+  .step-text {
+    display: none;
+  }
+
+  .stepper {
+    justify-content: space-between;
+  }
+
+  .step-linea {
+    flex: 1;
+    max-width: none;
+  }
+}

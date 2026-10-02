@@ -1,6 +1,7 @@
 .admin-layout {
   display: flex;
   min-height: 100vh;
+  min-width: 0;
   background: #f8fafc;
 }
 
@@ -107,6 +108,7 @@
 
 .admin-contenido {
   flex: 1;
+  min-width: 0;
   padding: 32px 40px;
   overflow-y: auto;
 }
@@ -443,10 +445,13 @@
   border-radius: 16px;
   border: 1px solid #e2e8f0;
   overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-tabla {
   width: 100%;
+  min-width: 700px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -718,4 +723,239 @@
 @media (max-width: 900px) {
   .admin-tarjetas { grid-template-columns: repeat(2, 1fr); }
   .admin-paneles-dobles { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .admin-layout {
+    display: block;
+  }
+
+  .admin-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 80;
+    display: flex;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 14px;
+  }
+
+  .admin-marca {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .admin-etiqueta {
+    order: 2;
+    width: 100%;
+    padding: 2px 2px 0;
+  }
+
+  .admin-nav {
+    order: 3;
+    flex: 0 0 100%;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-nav::-webkit-scrollbar,
+  .admin-chips-filtro::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-nav-item {
+    flex: 0 0 auto;
+    padding: 9px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .admin-nav-item:hover {
+    transform: none;
+  }
+
+  .admin-cerrar-sesion {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 9px 11px;
+    font-size: 13px;
+  }
+
+  .admin-contenido {
+    padding: 24px 20px;
+    overflow: visible;
+  }
+
+  .admin-panel {
+    min-width: 0;
+    padding: 20px;
+  }
+
+  .admin-estado-masivo > div:first-child {
+    min-width: min(100%, 220px);
+  }
+
+  .admin-estado-masivo .select-estilizado {
+    flex: 1 1 220px;
+    min-width: min(100%, 220px);
+  }
+
+  .admin-acciones-encabezado {
+    width: 100%;
+  }
+
+  .admin-acciones-encabezado > button {
+    flex: 1 1 auto;
+  }
+
+  .admin-modal-overlay {
+    align-items: flex-end;
+    padding: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .admin-modal-contenido {
+    max-height: min(88dvh, 760px);
+    padding: 26px 22px;
+    border-radius: 20px;
+  }
+
+  .admin-modal-acciones {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-sidebar {
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .admin-marca .marca-nombre {
+    font-size: 14px;
+  }
+
+  .admin-marca .logo {
+    width: 30px;
+    height: 30px;
+  }
+
+  .admin-contenido {
+    padding: 20px 14px;
+  }
+
+  .admin-encabezado h1 {
+    font-size: 25px;
+  }
+
+  .admin-encabezado p {
+    font-size: 14px;
+  }
+
+  .admin-acciones-encabezado {
+    flex-direction: column;
+  }
+
+  .admin-acciones-encabezado > button {
+    width: 100%;
+  }
+
+  .admin-tarjetas {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .admin-tarjeta {
+    padding: 16px;
+  }
+
+  .admin-tarjeta strong {
+    font-size: 23px;
+  }
+
+  .admin-panel {
+    padding: 16px;
+  }
+
+  .admin-barras {
+    gap: 10px;
+    overflow-x: auto;
+  }
+
+  .admin-barra-col {
+    min-width: 54px;
+  }
+
+  .admin-filtros {
+    align-items: stretch;
+  }
+
+  .admin-buscador {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-chips-filtro {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-chip {
+    flex: 0 0 auto;
+    padding: 9px 12px;
+  }
+
+  .admin-estado-masivo {
+    padding: 13px;
+  }
+
+  .admin-estado-masivo > div:first-child,
+  .admin-estado-masivo .select-estilizado,
+  .admin-estado-masivo > button {
+    flex-basis: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-notificacion {
+    align-items: flex-start;
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  .admin-fila-reserva {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .admin-modal-overlay {
+    padding: 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .admin-modal-contenido {
+    max-height: 92dvh;
+    padding: 24px 16px 18px;
+    border-radius: 18px;
+  }
+
+  .admin-modal-contenido h2 {
+    padding-right: 28px;
+    font-size: 20px;
+  }
+
+  .admin-modal-acciones > button {
+    flex: 1 1 120px;
+  }
 }
