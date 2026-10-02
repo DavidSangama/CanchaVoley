@@ -6,6 +6,7 @@ import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaDisponibilidadResponse;
 import com.canchavoley.backend.dto.ReservaGestionResponse;
 import com.canchavoley.backend.dto.ReprogramarReservaRequest;
+import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -148,5 +149,10 @@ public class ReservaController {
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         reservaService.eliminarPorFecha(fecha);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/vaciar")
+    public ResponseEntity<VaciadoDatosResponse> vaciarReservas() {
+        return ResponseEntity.ok(reservaService.vaciarReservas());
     }
 }

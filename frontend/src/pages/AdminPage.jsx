@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CanchaService } from '../services/CanchaService';
 import { ClienteService } from '../services/ClienteService';
@@ -6,6 +6,7 @@ import { ReservaService } from '../services/ReservaService';
 import { PagoService } from '../services/PagoService';
 import { HorarioService } from '../services/HorarioService';
 import { ADMIN_AUTHORIZATION_KEY } from '../services/api';
+import { SelectEstilizado } from '../components/SelectEstilizado';
 import './AdminPage.css';
 
 const SECCIONES = [
@@ -35,6 +36,8 @@ export function AdminPage() {
   const [horarios, setHorarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
+  const [dialogoAdmin, setDialogoAdmin] = useState(null);
+  const [notificacionAdmin, setNotificacionAdmin] = useState('');
 
   useEffect(() => {
     if (!sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY)) {
@@ -74,6 +77,51 @@ export function AdminPage() {
   useEffect(() => {
     recargarDatos();
   }, [recargarDatos]);
+
+  const solicitarConfirmacion = ({
+    titulo,
+    descripcion,
+    detalle,
+    etiquetaConfirmar = 'Confirmar',
+    mensajeError = 'No se pudo completar la acción. Intenta de nuevo.',
+    onConfirm,
+  }) => {
+    setDialogoAdmin({
+      titulo,
+      descripcion,
+      detalle,
+      etiquetaConfirmar,
+      mensajeError,
+      onConfirm,
+      ejecutando: false,
+      error: '',
+    });
+  };
+
+  const cerrarDialogoAdmin = () => {
+    if (!dialogoAdmin?.ejecutando) setDialogoAdmin(null);
+  };
+
+  const confirmarDialogoAdmin = async () => {
+    if (!dialogoAdmin || dialogoAdmin.ejecutando) return;
+    setDialogoAdmin((actual) => ({ ...actual, ejecutando: true, error: '' }));
+    try {
+      const mensaje = await dialogoAdmin.onConfirm();
+      setDialogoAdmin(null);
+      setNotificacionAdmin(mensaje);
+      await recargarDatos();
+    } catch (err) {
+      console.error('No se pudo completar la acción solicitada:', err);
+      if (err.status === 401) {
+        sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
+        navigate('/');
+        return;
+      }
+      setDialogoAdmin((actual) => (
+        actual ? { ...actual, ejecutando: false, error: actual.mensajeError } : actual
+      ));
+    }
+  };
 
   const cerrarSesion = () => {
     sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
@@ -209,12 +257,17 @@ export function AdminPage() {
   };
 
   const eliminarReserva = (r) => {
-    ReservaService.eliminar(r.idReserva)
-      .then(() => recargarDatos())
-      .catch((err) => {
-        console.error('Error al eliminar la reserva:', err);
-        window.alert('No se pudo eliminar la reserva.');
-      });
+    solicitarConfirmacion({
+      titulo: 'Eliminar reserva',
+      descripcion: `¿Eliminar la reserva #${r.idReserva}?`,
+      detalle: 'También se eliminará el pago asociado, si lo tiene.',
+      etiquetaConfirmar: 'Eliminar reserva',
+      mensajeError: 'No se pudo eliminar la reserva y su pago asociado.',
+      onConfirm: async () => {
+        await ReservaService.eliminar(r.idReserva);
+        return `Se eliminó la reserva #${r.idReserva}.`;
+      },
+    });
   };
 
   // ---- SECCIÓN CANCHAS ----
@@ -290,12 +343,17 @@ export function AdminPage() {
   };
 
   const eliminarCancha = (c) => {
-    CanchaService.eliminar(c.idCancha)
-      .then(() => recargarDatos())
-      .catch((err) => {
-        console.error('Error al eliminar la cancha:', err);
-        window.alert('No se pudo eliminar la cancha (puede tener reservas asociadas).');
-      });
+    solicitarConfirmacion({
+      titulo: 'Eliminar cancha',
+      descripcion: `¿Eliminar la cancha ${c.numeroCancha}?`,
+      detalle: 'No se podrá eliminar si tiene reservas asociadas.',
+      etiquetaConfirmar: 'Eliminar cancha',
+      mensajeError: 'No se pudo eliminar la cancha; revisa si todavía tiene reservas asociadas.',
+      onConfirm: async () => {
+        await CanchaService.eliminar(c.idCancha);
+        return `Se eliminó la cancha ${c.numeroCancha}.`;
+      },
+    });
   };
 
   // ---- SECCIÓN CLIENTES ----
@@ -385,12 +443,17 @@ export function AdminPage() {
   };
 
   const eliminarCliente = (c) => {
-    ClienteService.eliminar(c.idCliente)
-      .then(() => recargarDatos())
-      .catch((err) => {
-        console.error('Error al eliminar el cliente:', err);
-        window.alert('No se pudo eliminar el cliente (puede tener reservas asociadas).');
-      });
+    solicitarConfirmacion({
+      titulo: 'Eliminar cliente',
+      descripcion: `¿Eliminar a ${c.nombre} ${c.apellido}?`,
+      detalle: 'No se podrá eliminar si tiene reservas asociadas. Para vaciar todo, usa “Vaciar clientes”.',
+      etiquetaConfirmar: 'Eliminar cliente',
+      mensajeError: 'No se pudo eliminar el cliente; puede tener reservas asociadas.',
+      onConfirm: async () => {
+        await ClienteService.eliminar(c.idCliente);
+        return `Se eliminó a ${c.nombre} ${c.apellido}.`;
+      },
+    });
   };
 
   // ---- SECCIÓN HORARIOS ----
@@ -466,20 +529,23 @@ export function AdminPage() {
   };
 
   const eliminarHorario = (h) => {
-    HorarioService.eliminar(h.idHorario)
-      .then(() => recargarDatos())
-      .catch((err) => {
-        console.error('Error al eliminar el horario:', err);
-        window.alert('No se pudo eliminar el horario (puede tener reservas asociadas).');
-      });
+    solicitarConfirmacion({
+      titulo: 'Eliminar horario',
+      descripcion: `¿Eliminar el horario ${h.hora?.slice(0, 5)}?`,
+      detalle: 'No se podrá eliminar si hay reservas asociadas.',
+      etiquetaConfirmar: 'Eliminar horario',
+      mensajeError: 'No se pudo eliminar el horario; revisa si todavía tiene reservas asociadas.',
+      onConfirm: async () => {
+        await HorarioService.eliminar(h.idHorario);
+        return `Se eliminó el horario ${h.hora?.slice(0, 5)}.`;
+      },
+    });
   };
 
   // ---- SECCIÓN PAGOS ----
   const [filtroPagos, setFiltroPagos] = useState('todos'); // todos | reserva | cancha
   const [busquedaPagos, setBusquedaPagos] = useState('');
   const [estadoMasivoPago, setEstadoMasivoPago] = useState('');
-  const [actualizandoEstadoMasivo, setActualizandoEstadoMasivo] = useState(false);
-  const [mensajeEstadoMasivo, setMensajeEstadoMasivo] = useState('');
 
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
   const [cerrandoModalPago, setCerrandoModalPago] = useState(false);
@@ -578,40 +644,71 @@ export function AdminPage() {
   };
 
   const eliminarPago = (p) => {
-    PagoService.eliminar(p.idPago)
-      .then(() => recargarDatos())
-      .catch((err) => {
-        console.error('Error al eliminar el pago:', err);
-        window.alert('No se pudo eliminar el pago.');
-      });
+    solicitarConfirmacion({
+      titulo: 'Eliminar pago',
+      descripcion: `¿Eliminar el pago #${p.idPago}?`,
+      detalle: 'La reserva asociada se conservará.',
+      etiquetaConfirmar: 'Eliminar pago',
+      mensajeError: 'No se pudo eliminar el pago.',
+      onConfirm: async () => {
+        await PagoService.eliminar(p.idPago);
+        return `Se eliminó el pago #${p.idPago}.`;
+      },
+    });
   };
 
-  const actualizarEstadoMasivo = async () => {
-    if (!estadoMasivoPago || pagos.length === 0 || actualizandoEstadoMasivo) return;
+  const actualizarEstadoMasivo = () => {
+    if (!estadoMasivoPago || pagos.length === 0 || dialogoAdmin?.ejecutando) return;
     const estadoTexto = ESTADOS_PAGO[estadoMasivoPago];
-    const confirmar = window.confirm(
-      `¿Cambiar el estado a “${estadoTexto}” para los ${pagos.length} pagos registrados? Esta acción reemplazará el estado actual de todos ellos.`
-    );
-    if (!confirmar) return;
-
-    setActualizandoEstadoMasivo(true);
-    setMensajeEstadoMasivo('');
-    try {
-      const actualizados = await PagoService.actualizarEstadoDeTodos(estadoMasivoPago);
-      setPagos((actuales) => actuales.map((pago) => ({ ...pago, estado: estadoMasivoPago })));
-      setMensajeEstadoMasivo(`Estado actualizado para ${actualizados} pagos.`);
-    } catch (err) {
-      console.error('Error al actualizar el estado de todos los pagos:', err);
-      if (err.status === 401) {
-        sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
-        navigate('/');
-      } else {
-        setMensajeEstadoMasivo('No se pudo actualizar el estado de todos los pagos. Intenta de nuevo.');
-      }
-    } finally {
-      setActualizandoEstadoMasivo(false);
-    }
+    solicitarConfirmacion({
+      titulo: 'Cambiar el estado de todos los pagos',
+      descripcion: `¿Cambiar el estado a “${estadoTexto}” para los ${pagos.length} pagos registrados?`,
+      detalle: 'Esta acción reemplazará el estado actual de todos ellos.',
+      etiquetaConfirmar: 'Aplicar estado',
+      mensajeError: 'No se pudo actualizar el estado de todos los pagos.',
+      onConfirm: async () => {
+        const actualizados = await PagoService.actualizarEstadoDeTodos(estadoMasivoPago);
+        setPagos((actuales) => actuales.map((pago) => ({ ...pago, estado: estadoMasivoPago })));
+        return `Estado actualizado para ${actualizados} pagos.`;
+      },
+    });
   };
+
+  const vaciarPagos = () => solicitarConfirmacion({
+    titulo: 'Vaciar pagos',
+    descripcion: `Se eliminarán permanentemente los ${pagos.length} pagos.`,
+    detalle: 'Las reservas y los clientes se conservarán.',
+    etiquetaConfirmar: 'Vaciar pagos',
+    mensajeError: 'No se pudieron eliminar todos los pagos.',
+    onConfirm: async () => {
+      const resultado = await PagoService.vaciarTodos();
+      return `Se eliminaron ${resultado.pagosEliminados} pagos.`;
+    },
+  });
+
+  const vaciarReservas = () => solicitarConfirmacion({
+    titulo: 'Vaciar reservas',
+    descripcion: `Se eliminarán permanentemente las ${reservas.length} reservas y sus pagos asociados.`,
+    detalle: 'Los clientes, las canchas y los horarios se conservarán.',
+    etiquetaConfirmar: 'Vaciar reservas',
+    mensajeError: 'No se pudieron eliminar todas las reservas y sus pagos.',
+    onConfirm: async () => {
+      const resultado = await ReservaService.vaciarTodas();
+      return `Se eliminaron ${resultado.reservasEliminadas} reservas y ${resultado.pagosEliminados} pagos asociados.`;
+    },
+  });
+
+  const vaciarClientes = () => solicitarConfirmacion({
+    titulo: 'Vaciar clientes',
+    descripcion: `Se eliminarán permanentemente los ${clientes.length} clientes, sus ${reservas.length} reservas y los ${pagos.length} pagos.`,
+    detalle: 'Esta acción también elimina los enlaces privados de gestión. Canchas y horarios se conservarán.',
+    etiquetaConfirmar: 'Vaciar clientes',
+    mensajeError: 'No se pudieron eliminar todos los clientes y sus datos relacionados.',
+    onConfirm: async () => {
+      const resultado = await ClienteService.vaciarTodos();
+      return `Se eliminaron ${resultado.clientesEliminados} clientes, ${resultado.reservasEliminadas} reservas y ${resultado.pagosEliminados} pagos.`;
+    },
+  });
 
   return (
     <div className="admin-layout">
@@ -645,6 +742,12 @@ export function AdminPage() {
       <main className="admin-contenido">
         {cargando && <p className="estado-carga">Cargando panel…</p>}
         {error && <p className="estado-error">{error}</p>}
+        {notificacionAdmin && (
+          <div className="admin-notificacion" role="status" aria-live="polite">
+            <span>{notificacionAdmin}</span>
+            <button type="button" onClick={() => setNotificacionAdmin('')} aria-label="Cerrar mensaje">×</button>
+          </div>
+        )}
 
         {!cargando && !error && (
           <div key={seccionActiva} className="admin-vista">
@@ -720,9 +823,14 @@ export function AdminPage() {
                     <h1>Reservas</h1>
                     <p>Consulta y administra todas las reservas.</p>
                   </div>
-                  <button type="button" className="admin-btn-primario" onClick={abrirNuevaReserva}>
-                    Nueva reserva
-                  </button>
+                  <div className="admin-acciones-encabezado">
+                    <button type="button" className="admin-btn-peligro-secundario" onClick={vaciarReservas} disabled={reservas.length === 0}>
+                      Vaciar reservas
+                    </button>
+                    <button type="button" className="admin-btn-primario" onClick={abrirNuevaReserva}>
+                      Nueva reserva
+                    </button>
+                  </div>
                 </div>
 
                 <div className="admin-filtros">
@@ -889,9 +997,14 @@ export function AdminPage() {
                     <h1>Clientes</h1>
                     <p>Datos de las personas que reservan.</p>
                   </div>
-                  <button type="button" className="admin-btn-primario" onClick={abrirNuevoCliente}>
-                    Nuevo cliente
-                  </button>
+                  <div className="admin-acciones-encabezado">
+                    <button type="button" className="admin-btn-peligro-secundario" onClick={vaciarClientes} disabled={clientes.length === 0}>
+                      Vaciar clientes
+                    </button>
+                    <button type="button" className="admin-btn-primario" onClick={abrirNuevoCliente}>
+                      Nuevo cliente
+                    </button>
+                  </div>
                 </div>
 
                 <div className="admin-filtros">
@@ -1053,9 +1166,14 @@ export function AdminPage() {
                     <h1>Pagos</h1>
                     <p>Administra y verifica el estado de cada pago.</p>
                   </div>
-                  <button type="button" className="admin-btn-primario" onClick={abrirNuevoPago}>
-                    Nuevo pago
-                  </button>
+                  <div className="admin-acciones-encabezado">
+                    <button type="button" className="admin-btn-peligro-secundario" onClick={vaciarPagos} disabled={pagos.length === 0}>
+                      Vaciar pagos
+                    </button>
+                    <button type="button" className="admin-btn-primario" onClick={abrirNuevoPago}>
+                      Nuevo pago
+                    </button>
+                  </div>
                 </div>
 
                 <div className="admin-tarjetas">
@@ -1086,29 +1204,26 @@ export function AdminPage() {
                     <strong>Estado para todos los pagos</strong>
                     <span>Aplica a los {pagos.length} pagos registrados actualmente.</span>
                   </div>
-                  <select
-                    className="campo-input"
-                    aria-label="Nuevo estado para todos los pagos"
+                  <SelectEstilizado
+                    ariaLabel="Nuevo estado para todos los pagos"
                     value={estadoMasivoPago}
-                    onChange={(e) => setEstadoMasivoPago(e.target.value)}
-                    disabled={actualizandoEstadoMasivo}
-                  >
-                    <option value="">Selecciona un estado</option>
-                    <option value="PENDIENTE_VERIFICACION">Pendiente de verificación</option>
-                    <option value="REALIZADO">Pago realizado</option>
-                    <option value="CANCELADO">Pago cancelado</option>
-                  </select>
+                    onChange={setEstadoMasivoPago}
+                    disabled={dialogoAdmin?.ejecutando}
+                    placeholder="Selecciona un estado"
+                    options={[
+                      { value: 'PENDIENTE_VERIFICACION', label: 'Pendiente de verificación' },
+                      { value: 'REALIZADO', label: 'Pago realizado' },
+                      { value: 'CANCELADO', label: 'Pago cancelado' },
+                    ]}
+                  />
                   <button
                     type="button"
                     className="admin-btn-primario"
                     onClick={actualizarEstadoMasivo}
-                    disabled={!estadoMasivoPago || pagos.length === 0 || actualizandoEstadoMasivo}
+                    disabled={!estadoMasivoPago || pagos.length === 0 || dialogoAdmin?.ejecutando}
                   >
-                    {actualizandoEstadoMasivo ? 'Actualizando…' : 'Aplicar a todos'}
+                    Aplicar a todos
                   </button>
-                  {mensajeEstadoMasivo && (
-                    <p className="admin-estado-masivo-mensaje" role="status">{mensajeEstadoMasivo}</p>
-                  )}
                 </div>
 
                 <div className="admin-filtros">
@@ -1220,50 +1335,44 @@ export function AdminPage() {
             <form onSubmit={guardarReserva} className="admin-form">
               <div className="campo-grupo">
                 <label className="campo-label">Cliente</label>
-                <select
-                  className="campo-input"
+                <SelectEstilizado
+                  ariaLabel="Cliente"
                   value={formReserva.idCliente}
-                  onChange={(e) => setFormReserva((prev) => ({ ...prev, idCliente: e.target.value }))}
-                >
-                  <option value="">Selecciona un cliente</option>
-                  {clientes.map((c) => (
-                    <option key={c.idCliente} value={c.idCliente}>
-                      {c.nombre} {c.apellido} · DNI {c.dni}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormReserva((prev) => ({ ...prev, idCliente: String(value) }))}
+                  placeholder="Selecciona un cliente"
+                  options={clientes.map((c) => ({
+                    value: c.idCliente,
+                    label: `${c.nombre} ${c.apellido} · DNI ${c.dni}`,
+                  }))}
+                />
               </div>
 
               <div className="campo-grupo">
                 <label className="campo-label">Cancha</label>
-                <select
-                  className="campo-input"
+                <SelectEstilizado
+                  ariaLabel="Cancha"
                   value={formReserva.idCancha}
-                  onChange={(e) => setFormReserva((prev) => ({ ...prev, idCancha: e.target.value }))}
-                >
-                  <option value="">Selecciona una cancha</option>
-                  {canchas.map((c) => (
-                    <option key={c.idCancha} value={c.idCancha}>
-                      Cancha {c.numeroCancha}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormReserva((prev) => ({ ...prev, idCancha: String(value) }))}
+                  placeholder="Selecciona una cancha"
+                  options={canchas.map((c) => ({
+                    value: c.idCancha,
+                    label: `Cancha ${c.numeroCancha}`,
+                  }))}
+                />
               </div>
 
               <div className="campo-grupo">
                 <label className="campo-label">Horario</label>
-                <select
-                  className="campo-input"
+                <SelectEstilizado
+                  ariaLabel="Horario"
                   value={formReserva.idHorario}
-                  onChange={(e) => setFormReserva((prev) => ({ ...prev, idHorario: e.target.value }))}
-                >
-                  <option value="">Selecciona un horario</option>
-                  {horarios.map((h) => (
-                    <option key={h.idHorario} value={h.idHorario}>
-                      {h.hora?.slice(0, 5)} · S/ {Number(h.precio)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormReserva((prev) => ({ ...prev, idHorario: String(value) }))}
+                  placeholder="Selecciona un horario"
+                  options={horarios.map((h) => ({
+                    value: h.idHorario,
+                    label: `${h.hora?.slice(0, 5)} · S/ ${Number(h.precio)}`,
+                  }))}
+                />
               </div>
 
               <div className="campo-grupo">
@@ -1483,18 +1592,16 @@ export function AdminPage() {
             <form onSubmit={guardarPago} className="admin-form">
               <div className="campo-grupo">
                 <label className="campo-label">Reserva</label>
-                <select
-                  className="campo-input"
+                <SelectEstilizado
+                  ariaLabel="Reserva"
                   value={formPago.idReserva}
-                  onChange={(e) => setFormPago((prev) => ({ ...prev, idReserva: e.target.value }))}
-                >
-                  <option value="">Selecciona una reserva</option>
-                  {(pagoEditando ? reservas : reservasSinPago).map((r) => (
-                    <option key={r.idReserva} value={r.idReserva}>
-                      #{r.idReserva} · {r.cliente?.nombre} {r.cliente?.apellido} · Cancha {r.cancha?.numeroCancha} · {r.fecha}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFormPago((prev) => ({ ...prev, idReserva: String(value) }))}
+                  placeholder="Selecciona una reserva"
+                  options={(pagoEditando ? reservas : reservasSinPago).map((r) => ({
+                    value: r.idReserva,
+                    label: `#${r.idReserva} · ${r.cliente?.nombre} ${r.cliente?.apellido} · Cancha ${r.cancha?.numeroCancha} · ${r.fecha}`,
+                  }))}
+                />
               </div>
 
               <div className="campo-grupo">
@@ -1512,16 +1619,16 @@ export function AdminPage() {
               {pagoEditando && (
                 <div className="campo-grupo">
                   <label className="campo-label" htmlFor="estado-pago">Estado del pago</label>
-                  <select
-                    id="estado-pago"
-                    className="campo-input"
+                  <SelectEstilizado
+                    ariaLabel="Estado del pago"
                     value={formPago.estado}
-                    onChange={(e) => setFormPago((prev) => ({ ...prev, estado: e.target.value }))}
-                  >
-                    <option value="PENDIENTE_VERIFICACION">Pendiente de verificación</option>
-                    <option value="REALIZADO">Pago realizado</option>
-                    <option value="CANCELADO">Pago cancelado</option>
-                  </select>
+                    onChange={(value) => setFormPago((prev) => ({ ...prev, estado: value }))}
+                    options={[
+                      { value: 'PENDIENTE_VERIFICACION', label: 'Pendiente de verificación' },
+                      { value: 'REALIZADO', label: 'Pago realizado' },
+                      { value: 'CANCELADO', label: 'Pago cancelado' },
+                    ]}
+                  />
                 </div>
               )}
 
@@ -1537,6 +1644,47 @@ export function AdminPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {dialogoAdmin && (
+        <div
+          className="admin-modal-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) cerrarDialogoAdmin();
+          }}
+        >
+          <section
+            className="admin-modal-contenido admin-dialogo-confirmacion"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="dialogo-admin-titulo"
+            aria-describedby="dialogo-admin-descripcion"
+          >
+            <span className="admin-dialogo-icono" aria-hidden="true">!</span>
+            <h2 id="dialogo-admin-titulo">{dialogoAdmin.titulo}</h2>
+            <p id="dialogo-admin-descripcion">{dialogoAdmin.descripcion}</p>
+            {dialogoAdmin.detalle && <p className="admin-dialogo-detalle">{dialogoAdmin.detalle}</p>}
+            {dialogoAdmin.error && <p className="admin-dialogo-error" role="alert">{dialogoAdmin.error}</p>}
+            <div className="admin-modal-acciones">
+              <button
+                type="button"
+                className="btn-admin-secundario"
+                onClick={cerrarDialogoAdmin}
+                disabled={dialogoAdmin.ejecutando}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                className="admin-btn-peligro"
+                onClick={confirmarDialogoAdmin}
+                disabled={dialogoAdmin.ejecutando}
+              >
+                {dialogoAdmin.ejecutando ? 'Procesando…' : dialogoAdmin.etiquetaConfirmar}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

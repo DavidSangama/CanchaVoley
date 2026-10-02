@@ -14,4 +14,5 @@ export const ClienteService = {
       body: JSON.stringify(clienteData),
     }),
   eliminar: (id) => fetchAPI(`/clientes/${id}`, { method: "DELETE" }),
+  vaciarTodos: () => fetchAPI("/clientes/vaciar", { method: "DELETE" }),
 };

@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface TokenGestionClienteRepository extends JpaRepository<TokenGestionCliente, Long> {
 
     Optional<TokenGestionCliente> findByTokenHash(String tokenHash);
+
 }

@@ -3,6 +3,7 @@ package com.canchavoley.backend.service;
 import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.model.Reserva;
+import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.repository.PagoRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,6 +100,13 @@ public class PagoService {
             throw new IllegalArgumentException("Selecciona un estado de pago válido.");
         }
         return pagoRepository.actualizarEstadoDeTodos(nuevoEstado);
+    }
+
+    @Transactional
+    public VaciadoDatosResponse vaciarPagos() {
+        long eliminados = pagoRepository.count();
+        pagoRepository.deleteAllInBatch();
+        return new VaciadoDatosResponse(0, 0, eliminados);
     }
 
     // --- DELETEs ---

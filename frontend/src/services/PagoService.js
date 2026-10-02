@@ -16,5 +16,6 @@ export const PagoService = {
     fetchAPI(`/pagos/estado/todos?nuevoEstado=${encodeURIComponent(nuevoEstado)}`, {
       method: "PUT",
     }),
+  vaciarTodos: () => fetchAPI("/pagos/vaciar", { method: "DELETE" }),
   eliminar: (id) => fetchAPI(`/pagos/${id}`, { method: "DELETE" }),
 };

@@ -138,6 +138,12 @@
 
 .admin-encabezado p { color: #64748b; margin: 0; }
 
+.admin-acciones-encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .admin-btn-primario {
   padding: 12px 20px;
   border-radius: 12px;
@@ -153,6 +159,44 @@
 
 .admin-btn-primario:hover { background: #1d4ed8; transform: translateY(-1px); }
 .admin-btn-primario:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.admin-btn-peligro-secundario,
+.admin-btn-peligro {
+  padding: 12px 18px;
+  border: 1.5px solid #fecaca;
+  border-radius: 12px;
+  background: #fff;
+  color: #b91c1c;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.admin-btn-peligro-secundario:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+.admin-btn-peligro-secundario:disabled,
+.admin-btn-peligro:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.admin-btn-peligro {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.admin-btn-peligro:hover:not(:disabled) {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
 
 .btn-admin-secundario {
   padding: 12px 20px;
@@ -328,15 +372,42 @@
   font-size: 13px;
 }
 
-.admin-estado-masivo .campo-input {
-  width: auto;
+.admin-estado-masivo .select-estilizado {
   min-width: 220px;
+  flex: 0 1 auto;
+}
+
+.admin-estado-masivo .campo-input {
+  width: 100%;
   background: #ffffff;
 }
 
 .admin-estado-masivo-mensaje {
   flex-basis: 100%;
   margin: 0;
+}
+
+.admin-notificacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-notificacion button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  cursor: pointer;
 }
 
 .admin-chips-filtro {
@@ -497,6 +568,55 @@
   color: #0f172a;
 }
 
+.admin-dialogo-confirmacion {
+  max-width: 480px;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-dialogo-confirmacion h2 {
+  margin: 12px 0 8px;
+}
+
+.admin-dialogo-confirmacion > p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.admin-dialogo-confirmacion .admin-dialogo-detalle {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+.admin-dialogo-confirmacion .admin-dialogo-error {
+  margin-top: 12px;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.admin-dialogo-icono {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.admin-dialogo-confirmacion .admin-modal-acciones {
+  margin-top: 24px;
+}
+
 .admin-form {
   display: flex;
   flex-direction: column;
@@ -560,6 +680,34 @@
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.admin-layout select.campo-input {
+  appearance: none;
+  min-height: 46px;
+  padding-right: 42px;
+  border-color: #cbd5e1;
+  border-radius: 12px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m5 7.5 5 5 5-5' stroke='%23475569' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+.admin-layout select.campo-input:hover:not(:disabled) {
+  border-color: #93c5fd;
+}
+
+.admin-layout select.campo-input option {
+  padding: 10px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.admin-layout select.campo-input option:checked {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .campo-ayuda-error {

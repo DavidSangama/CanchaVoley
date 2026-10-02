@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Footer } from '../components/Footer';
 import { Navbar } from '../components/Navbar';
+import { SelectEstilizado } from '../components/SelectEstilizado';
 import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
 
@@ -289,24 +290,20 @@ export function GestionReservaPage() {
 
                 <label className="block text-sm font-semibold text-slate-700">
                   Nuevo horario
-                  <select
+                  <SelectEstilizado
+                    ariaLabel="Nuevo horario"
                     value={idHorarioSeleccionado}
-                    onChange={(event) => setIdHorarioSeleccionado(event.target.value)}
-                    className="mt-2 block w-full rounded-xl border border-slate-300 px-4 py-3 font-normal"
-                    required
+                    onChange={(value) => setIdHorarioSeleccionado(String(value))}
+                    className="mt-2"
                     disabled={cargandoDisponibilidad}
-                  >
-                    <option value="">
-                      {cargandoDisponibilidad ? 'Consultando disponibilidad…' : 'Selecciona un horario'}
-                    </option>
-                    {horarios
+                    placeholder={cargandoDisponibilidad ? 'Consultando disponibilidad…' : 'Selecciona un horario'}
+                    options={horarios
                       .filter((horario) => !horariosOcupados.includes(horario.idHorario))
-                      .map((horario) => (
-                        <option key={horario.idHorario} value={horario.idHorario}>
-                          {horario.hora?.slice(0, 5)} · S/ {Number(horario.precio)}
-                        </option>
-                      ))}
-                  </select>
+                      .map((horario) => ({
+                        value: horario.idHorario,
+                        label: `${horario.hora?.slice(0, 5)} · S/ ${Number(horario.precio)}`,
+                      }))}
+                  />
                 </label>
 
                 <button

@@ -3,6 +3,7 @@ package com.canchavoley.backend.controller;
 import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.dto.PagoCreadoResponse;
+import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.service.PagoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -122,5 +123,10 @@ public class PagoController {
     public ResponseEntity<Void> eliminarPorReserva(@PathVariable Long idReserva) {
         pagoService.eliminarPorReserva(idReserva);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/vaciar")
+    public ResponseEntity<VaciadoDatosResponse> vaciarPagos() {
+        return ResponseEntity.ok(pagoService.vaciarPagos());
     }
 }

@@ -1,7 +1,11 @@
 package com.canchavoley.backend.service;
 
 import com.canchavoley.backend.model.Cliente;
+import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.repository.ClienteRepository;
+import com.canchavoley.backend.repository.PagoRepository;
+import com.canchavoley.backend.repository.ReservaRepository;
+import com.canchavoley.backend.repository.TokenGestionClienteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +18,15 @@ public class ClienteService {
 
     @Autowired
     private ClienteRepository clienteRepository;
+
+    @Autowired
+    private ReservaRepository reservaRepository;
+
+    @Autowired
+    private PagoRepository pagoRepository;
+
+    @Autowired
+    private TokenGestionClienteRepository tokenGestionClienteRepository;
 
     // --- GETs ---
     public List<Cliente> obtenerTodos() {
@@ -71,5 +84,17 @@ public class ClienteService {
     @Transactional
     public void eliminarPorDni(String dni) {
         clienteRepository.deleteByDni(dni);
+    }
+
+    @Transactional
+    public VaciadoDatosResponse vaciarClientes() {
+        long clientesEliminados = clienteRepository.count();
+        long reservasEliminadas = reservaRepository.count();
+        long pagosEliminados = pagoRepository.count();
+        tokenGestionClienteRepository.deleteAllInBatch();
+        pagoRepository.deleteAllInBatch();
+        reservaRepository.deleteAllInBatch();
+        clienteRepository.deleteAllInBatch();
+        return new VaciadoDatosResponse(clientesEliminados, reservasEliminadas, pagosEliminados);
     }
 }

@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminController.class)
@@ -68,6 +69,16 @@ class AdminSecurityTest {
     void protectsBulkPaymentStatusUpdates() throws Exception {
         mockMvc.perform(put("/api/pagos/estado/todos")
                         .param("nuevoEstado", "REALIZADO"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void protectsBulkDataDeletionEndpoints() throws Exception {
+        mockMvc.perform(delete("/api/pagos/vaciar"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/reservas/vaciar"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/clientes/vaciar"))
                 .andExpect(status().isUnauthorized());
     }
 

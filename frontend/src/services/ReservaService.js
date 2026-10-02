@@ -32,4 +32,5 @@ export const ReservaService = {
       body: JSON.stringify(reservaData),
     }),
   eliminar: (id) => fetchAPI(`/reservas/${id}`, { method: "DELETE" }),
+  vaciarTodas: () => fetchAPI("/reservas/vaciar", { method: "DELETE" }),
 };

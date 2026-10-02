@@ -2,6 +2,7 @@ package com.canchavoley.backend.controller;
 
 import com.canchavoley.backend.model.Cliente;
 import com.canchavoley.backend.dto.ClienteIdResponse;
+import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.service.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -104,5 +105,10 @@ public class ClienteController {
     public ResponseEntity<Void> eliminarPorDni(@PathVariable String dni) {
         clienteService.eliminarPorDni(dni);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/vaciar")
+    public ResponseEntity<VaciadoDatosResponse> vaciarClientes() {
+        return ResponseEntity.ok(clienteService.vaciarClientes());
     }
 }

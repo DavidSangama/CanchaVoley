@@ -15,6 +15,7 @@ import com.canchavoley.backend.repository.TokenGestionClienteRepository;
 import com.canchavoley.backend.model.TokenGestionCliente;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaGestionResponse;
+import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -257,12 +258,23 @@ public class ReservaService {
     }
 
     // --- DELETEs ---
+    @Transactional
     public void eliminarPorId(Long id) {
+        pagoRepository.deleteByReservaIdReserva(id);
         reservaRepository.deleteById(id);
     }
 
     @Transactional
     public void eliminarPorFecha(LocalDate fecha) {
         reservaRepository.deleteByFecha(fecha);
+    }
+
+    @Transactional
+    public VaciadoDatosResponse vaciarReservas() {
+        long reservasEliminadas = reservaRepository.count();
+        long pagosEliminados = pagoRepository.count();
+        pagoRepository.deleteAllInBatch();
+        reservaRepository.deleteAllInBatch();
+        return new VaciadoDatosResponse(0, reservasEliminadas, pagosEliminados);
     }
 }
