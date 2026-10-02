@@ -31,6 +31,9 @@ class VaciadoDatosServiceTest {
     @Mock
     private TokenGestionClienteRepository tokenGestionClienteRepository;
 
+    @Mock
+    private ReiniciarIdentidadesService reiniciarIdentidadesService;
+
     @InjectMocks
     private ClienteService clienteService;
 
@@ -50,6 +53,7 @@ class VaciadoDatosServiceTest {
         assertEquals(0, resultado.reservasEliminadas());
         assertEquals(5, resultado.pagosEliminados());
         verify(pagoRepository).deleteAllInBatch();
+        verify(reiniciarIdentidadesService).reiniciarPagos();
     }
 
     @Test
@@ -65,6 +69,8 @@ class VaciadoDatosServiceTest {
         InOrder orden = inOrder(pagoRepository, reservaRepository);
         orden.verify(pagoRepository).deleteAllInBatch();
         orden.verify(reservaRepository).deleteAllInBatch();
+        verify(reiniciarIdentidadesService).reiniciarPagos();
+        verify(reiniciarIdentidadesService).reiniciarReservas();
     }
 
     @Test
@@ -87,5 +93,9 @@ class VaciadoDatosServiceTest {
         orden.verify(pagoRepository).deleteAllInBatch();
         orden.verify(reservaRepository).deleteAllInBatch();
         orden.verify(clienteRepository).deleteAllInBatch();
+        verify(reiniciarIdentidadesService).reiniciarTokensGestion();
+        verify(reiniciarIdentidadesService).reiniciarPagos();
+        verify(reiniciarIdentidadesService).reiniciarReservas();
+        verify(reiniciarIdentidadesService).reiniciarClientes();
     }
 }

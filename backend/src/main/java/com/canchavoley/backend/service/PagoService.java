@@ -23,6 +23,9 @@ public class PagoService {
     @Autowired
     private ReservaRepository reservaRepository;
 
+    @Autowired
+    private ReiniciarIdentidadesService reiniciarIdentidadesService;
+
     // --- GETs ---
     public List<Pago> obtenerTodos() {
         return pagoRepository.findAll();
@@ -106,6 +109,7 @@ public class PagoService {
     public VaciadoDatosResponse vaciarPagos() {
         long eliminados = pagoRepository.count();
         pagoRepository.deleteAllInBatch();
+        reiniciarIdentidadesService.reiniciarPagos();
         return new VaciadoDatosResponse(0, 0, eliminados);
     }
 

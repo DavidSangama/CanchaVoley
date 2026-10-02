@@ -28,6 +28,9 @@ public class ClienteService {
     @Autowired
     private TokenGestionClienteRepository tokenGestionClienteRepository;
 
+    @Autowired
+    private ReiniciarIdentidadesService reiniciarIdentidadesService;
+
     // --- GETs ---
     public List<Cliente> obtenerTodos() {
         return clienteRepository.findAll();
@@ -95,6 +98,10 @@ public class ClienteService {
         pagoRepository.deleteAllInBatch();
         reservaRepository.deleteAllInBatch();
         clienteRepository.deleteAllInBatch();
+        reiniciarIdentidadesService.reiniciarTokensGestion();
+        reiniciarIdentidadesService.reiniciarPagos();
+        reiniciarIdentidadesService.reiniciarReservas();
+        reiniciarIdentidadesService.reiniciarClientes();
         return new VaciadoDatosResponse(clientesEliminados, reservasEliminadas, pagosEliminados);
     }
 }

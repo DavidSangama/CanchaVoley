@@ -53,6 +53,9 @@ public class ReservaService {
     @Autowired
     private TokenGestionClienteRepository tokenGestionClienteRepository;
 
+    @Autowired
+    private ReiniciarIdentidadesService reiniciarIdentidadesService;
+
     private final SecureRandom secureRandom = new SecureRandom();
 
     // --- GETs ---
@@ -275,6 +278,8 @@ public class ReservaService {
         long pagosEliminados = pagoRepository.count();
         pagoRepository.deleteAllInBatch();
         reservaRepository.deleteAllInBatch();
+        reiniciarIdentidadesService.reiniciarPagos();
+        reiniciarIdentidadesService.reiniciarReservas();
         return new VaciadoDatosResponse(0, reservasEliminadas, pagosEliminados);
     }
 }
