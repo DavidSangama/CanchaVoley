@@ -196,7 +196,6 @@ export function AdminPage() {
   };
 
   const eliminarReserva = (r) => {
-    if (!window.confirm(`¿Eliminar la reserva #${r.idReserva}?`)) return;
     ReservaService.eliminar(r.idReserva)
       .then(() => recargarDatos())
       .catch((err) => {
@@ -278,7 +277,6 @@ export function AdminPage() {
   };
 
   const eliminarCancha = (c) => {
-    if (!window.confirm(`¿Eliminar la Cancha ${c.numeroCancha}?`)) return;
     CanchaService.eliminar(c.idCancha)
       .then(() => recargarDatos())
       .catch((err) => {
@@ -374,7 +372,6 @@ export function AdminPage() {
   };
 
   const eliminarCliente = (c) => {
-    if (!window.confirm(`¿Eliminar a ${c.nombre} ${c.apellido}?`)) return;
     ClienteService.eliminar(c.idCliente)
       .then(() => recargarDatos())
       .catch((err) => {
@@ -456,7 +453,6 @@ export function AdminPage() {
   };
 
   const eliminarHorario = (h) => {
-    if (!window.confirm(`¿Eliminar el horario ${h.hora?.slice(0, 5)}?`)) return;
     HorarioService.eliminar(h.idHorario)
       .then(() => recargarDatos())
       .catch((err) => {
@@ -554,7 +550,6 @@ export function AdminPage() {
   };
 
   const eliminarPago = (p) => {
-    if (!window.confirm(`¿Eliminar el pago #${p.idPago}?`)) return;
     PagoService.eliminar(p.idPago)
       .then(() => recargarDatos())
       .catch((err) => {
