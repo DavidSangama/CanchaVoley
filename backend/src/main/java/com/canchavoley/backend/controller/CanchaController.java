@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/canchas")
-@CrossOrigin(origins = "*")
 public class CanchaController {
 
     @Autowired
