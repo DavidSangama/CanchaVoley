@@ -23,6 +23,7 @@ export default function InicioPage() {
   const [loginAdmin, setLoginAdmin] = useState({ usuario: '', clave: '' });
   const [errorLoginAdmin, setErrorLoginAdmin] = useState('');
   const [verificandoLoginAdmin, setVerificandoLoginAdmin] = useState(false);
+  const [mostrarClaveAdmin, setMostrarClaveAdmin] = useState(false);
 
   useEffect(() => {
     const ids = ['inicio', 'canchas', 'horarios'];
@@ -468,6 +469,7 @@ export default function InicioPage() {
                   id="admin-usuario"
                   type="text"
                   className="campo-input"
+                  autoComplete="username"
                   value={loginAdmin.usuario}
                   onChange={(e) => setLoginAdmin((prev) => ({ ...prev, usuario: e.target.value }))}
                   autoFocus
@@ -478,11 +480,20 @@ export default function InicioPage() {
                 <label className="campo-label" htmlFor="admin-clave">Contraseña</label>
                 <input
                   id="admin-clave"
-                  type="password"
+                  type={mostrarClaveAdmin ? 'text' : 'password'}
                   className="campo-input"
+                  autoComplete="current-password"
                   value={loginAdmin.clave}
                   onChange={(e) => setLoginAdmin((prev) => ({ ...prev, clave: e.target.value }))}
                 />
+                <button
+                  type="button"
+                  className="login-admin-mostrar-clave"
+                  aria-pressed={mostrarClaveAdmin}
+                  onClick={() => setMostrarClaveAdmin((mostrar) => !mostrar)}
+                >
+                  {mostrarClaveAdmin ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                </button>
               </div>
 
               {errorLoginAdmin && <span className="campo-ayuda-error">{errorLoginAdmin}</span>}

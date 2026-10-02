@@ -1053,6 +1053,22 @@ html {
   margin-right: auto;
 }
 
+.login-admin-mostrar-clave {
+  align-self: flex-end;
+  margin-top: -8px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-admin-mostrar-clave:hover {
+  text-decoration: underline;
+}
+
 .campo-grupo {
   display: flex;
   flex-direction: column;

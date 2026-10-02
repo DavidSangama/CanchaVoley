@@ -25,6 +25,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/reservas/*/cancelar").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/canchas/**",
                                 "/api/horarios/**",

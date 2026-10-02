@@ -6,6 +6,11 @@ export const ReservaService = {
       method: "POST",
       body: JSON.stringify(reservaData),
     }),
+  cancelarSolicitud: (id, tokenCancelacion) =>
+    fetchAPI(`/reservas/${id}/cancelar`, {
+      method: "POST",
+      body: JSON.stringify({ tokenCancelacion }),
+    }),
   obtenerPorFecha: (fecha) => fetchAPI(`/reservas/fecha/${fecha}`),
   obtenerTodas: () => fetchAPI("/reservas"),
   actualizar: (id, reservaData) =>

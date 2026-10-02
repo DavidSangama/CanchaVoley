@@ -160,7 +160,6 @@ export function ReservaPage() {
   const [cancelandoSolicitud, setCancelandoSolicitud] = useState(false);
   const [errorCancelacion, setErrorCancelacion] = useState(null);
   const [solicitudCancelada, setSolicitudCancelada] = useState(false);
-  const [pagoEliminado, setPagoEliminado] = useState(false);
 
   const confirmarReserva = async () => {
     setEnviandoReserva(true);
@@ -191,14 +190,14 @@ export function ReservaPage() {
       });
 
       // 3. Registrar el pago
-      const pagoCreado = await PagoService.procesar({
+      await PagoService.procesar({
         reserva: { idReserva: nuevaReserva.idReserva },
         total: horarioSeleccionado.precio,
       });
 
       setDatosConfirmacion({
         idReserva: nuevaReserva.idReserva,
-        idPago: pagoCreado.idPago,
+        tokenCancelacion: nuevaReserva.tokenCancelacion,
         cancha: canchaSeleccionada,
         fecha: fechaLarga,
         horario: horarioSeleccionado.hora?.slice(0, 5),
@@ -225,11 +224,10 @@ export function ReservaPage() {
     setDatosConfirmacion(null);
     setErrorCancelacion(null);
     setSolicitudCancelada(false);
-    setPagoEliminado(false);
   };
 
   const cancelarSolicitud = async () => {
-    if (!datosConfirmacion?.idPago || !datosConfirmacion?.idReserva) {
+    if (!datosConfirmacion?.tokenCancelacion || !datosConfirmacion?.idReserva) {
       setErrorCancelacion('No se encontraron los datos necesarios para cancelar la solicitud. Contacta al administrador.');
       return;
     }
@@ -238,23 +236,21 @@ export function ReservaPage() {
 
     setCancelandoSolicitud(true);
     setErrorCancelacion(null);
-
     try {
-      if (!pagoEliminado) {
-        await PagoService.eliminar(datosConfirmacion.idPago);
-        setPagoEliminado(true);
-      }
-      try {
-        await ReservaService.eliminar(datosConfirmacion.idReserva);
-      } catch (error) {
-        console.error('No se pudo liberar la reserva después de cancelar el pago:', error);
-        setErrorCancelacion('El pago se canceló, pero no se pudo liberar el horario. Inténtalo de nuevo o contacta al administrador.');
-        return;
-      }
+      await ReservaService.cancelarSolicitud(
+        datosConfirmacion.idReserva,
+        datosConfirmacion.tokenCancelacion
+      );
       setSolicitudCancelada(true);
     } catch (error) {
       console.error('Error al cancelar la solicitud de pago:', error);
-      setErrorCancelacion(error.message || 'No se pudo cancelar la solicitud. Inténtalo de nuevo.');
+      if (error.status === 409) {
+        setErrorCancelacion('Este pago ya fue verificado o la solicitud ya no está pendiente. Contacta al administrador para cancelar la reserva.');
+      } else if (error.status === 404) {
+        setErrorCancelacion('No se pudo validar la solicitud. Contacta al administrador para recibir ayuda.');
+      } else {
+        setErrorCancelacion('No se pudo cancelar la solicitud. Inténtalo de nuevo.');
+      }
     } finally {
       setCancelandoSolicitud(false);
     }
@@ -286,22 +282,18 @@ export function ReservaPage() {
             <h1>
               {solicitudCancelada
                 ? 'Solicitud cancelada'
-                : pagoEliminado
-                ? 'Pago cancelado, horario pendiente de liberar'
                 : 'Pago pendiente de verificación'}
             </h1>
             <p>
               {solicitudCancelada
                 ? 'Tu solicitud fue cancelada y el horario quedó liberado.'
-                : pagoEliminado
-                ? 'El pago se eliminó, pero la reserva aún ocupa el horario. Puedes intentar liberar el horario otra vez.'
                 : 'Recibimos tu solicitud. El administrador verificará el pago antes de confirmar la reserva.'}
             </p>
 
             {!solicitudCancelada && (
               <>
                 <div className="confirmacion-estado" role="status">
-                  {pagoEliminado ? 'Pago cancelado; horario aún reservado' : 'Pendiente de verificación'}
+                  Pendiente de verificación
                 </div>
                 <div className="confirmacion-detalle">
                   <div className="resumen-fila">
@@ -334,7 +326,7 @@ export function ReservaPage() {
               ) : (
                 <>
                   <button type="button" className="btn btn-cancelar" onClick={cancelarSolicitud} disabled={cancelandoSolicitud}>
-                    {cancelandoSolicitud ? 'Cancelando...' : pagoEliminado ? 'Reintentar liberar horario' : 'Cancelar solicitud'}
+                    {cancelandoSolicitud ? 'Cancelando...' : 'Cancelar solicitud'}
                   </button>
                   <button type="button" className="btn btn-secundario" onClick={hacerOtraReserva}>
                     Hacer otra reserva

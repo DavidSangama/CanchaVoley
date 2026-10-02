@@ -1,6 +1,7 @@
 package com.canchavoley.backend.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDate;
 
 @Entity
@@ -28,6 +29,10 @@ public class Reserva {
 
     @Column(name = "fecha", nullable = false)
     private LocalDate fecha;
+
+    @JsonIgnore
+    @Column(name = "token_cancelacion_hash", length = 64)
+    private String tokenCancelacionHash;
 
     public Reserva() {
     }
@@ -78,5 +83,13 @@ public class Reserva {
 
     public void setFecha(LocalDate fecha) {
         this.fecha = fecha;
+    }
+
+    public String getTokenCancelacionHash() {
+        return tokenCancelacionHash;
+    }
+
+    public void setTokenCancelacionHash(String tokenCancelacionHash) {
+        this.tokenCancelacionHash = tokenCancelacionHash;
     }
 }

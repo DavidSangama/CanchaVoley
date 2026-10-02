@@ -15,3 +15,7 @@ $env:ADMIN_PASSWORD = "replace-with-a-unique-password-of-at-least-12-characters"
 ```
 
 In Railway, add `ADMIN_USERNAME` and `ADMIN_PASSWORD` under the backend service's Variables, then deploy the backend.
+
+## Customer reservation cancellation
+
+Run `sql/20261002_add_reservation_cancel_token.sql` once against the production PostgreSQL database before deploying changes that add token-based customer cancellation. The cancellation token is returned only when a reservation is created; the database stores only its SHA-256 hash. A cancellation deletes the associated pending/cancelled payment and reservation in one transaction. A payment marked as completed cannot be cancelled by the customer.

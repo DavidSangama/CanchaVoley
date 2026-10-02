@@ -1,6 +1,7 @@
 package com.canchavoley.backend.controller;
 
 import com.canchavoley.backend.model.Reserva;
+import com.canchavoley.backend.dto.CancelarReservaRequest;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaDisponibilidadResponse;
 import com.canchavoley.backend.service.ReservaService;
@@ -68,8 +69,15 @@ public class ReservaController {
     // POST 1: Crear una reserva
     @PostMapping
     public ResponseEntity<ReservaCreadaResponse> crearReserva(@RequestBody Reserva reserva) {
-        Reserva reservaGuardada = reservaService.guardar(reserva);
-        return new ResponseEntity<>(new ReservaCreadaResponse(reservaGuardada.getIdReserva()), HttpStatus.CREATED);
+        return new ResponseEntity<>(reservaService.crearConTokenCancelacion(reserva), HttpStatus.CREATED);
+    }
+
+    @PostMapping("/{id}/cancelar")
+    public ResponseEntity<Void> cancelarSolicitudCliente(
+            @PathVariable Long id,
+            @RequestBody CancelarReservaRequest solicitud) {
+        reservaService.cancelarSolicitudCliente(id, solicitud.tokenCancelacion());
+        return ResponseEntity.noContent().build();
     }
 
     // POST 2: Crear reservas en lote

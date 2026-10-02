@@ -3,16 +3,27 @@ package com.canchavoley.backend.service;
 import com.canchavoley.backend.model.Cancha;
 import com.canchavoley.backend.model.Cliente;
 import com.canchavoley.backend.model.Horario;
+import com.canchavoley.backend.model.EstadoPago;
+import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.model.Reserva;
 import com.canchavoley.backend.repository.CanchaRepository;
 import com.canchavoley.backend.repository.ClienteRepository;
 import com.canchavoley.backend.repository.HorarioRepository;
+import com.canchavoley.backend.repository.PagoRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
+import com.canchavoley.backend.dto.ReservaCreadaResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +41,11 @@ public class ReservaService {
 
     @Autowired
     private HorarioRepository horarioRepository;
+
+    @Autowired
+    private PagoRepository pagoRepository;
+
+    private final SecureRandom secureRandom = new SecureRandom();
 
     // --- GETs ---
     public List<Reserva> obtenerTodas() {
@@ -50,6 +66,47 @@ public class ReservaService {
 
     public long contarTodas() {
         return reservaRepository.count();
+    }
+
+    @Transactional
+    public ReservaCreadaResponse crearConTokenCancelacion(Reserva reserva) {
+        byte[] bytesToken = new byte[32];
+        secureRandom.nextBytes(bytesToken);
+        String tokenCancelacion = Base64.getUrlEncoder().withoutPadding().encodeToString(bytesToken);
+
+        reserva.setTokenCancelacionHash(hashToken(tokenCancelacion));
+        Reserva reservaGuardada = reservaRepository.save(resolverRelaciones(reserva));
+        return new ReservaCreadaResponse(reservaGuardada.getIdReserva(), tokenCancelacion);
+    }
+
+    @Transactional
+    public void cancelarSolicitudCliente(Long idReserva, String tokenCancelacion) {
+        if (tokenCancelacion == null || tokenCancelacion.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+
+        String tokenHash = hashToken(tokenCancelacion);
+        Reserva reserva = reservaRepository.findByIdReservaAndTokenCancelacionHash(idReserva, tokenHash)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        Pago pago = pagoRepository.findByReservaIdReserva(idReserva)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud ya no está pendiente de pago."));
+
+        if (pago.getEstado() == EstadoPago.REALIZADO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Un pago realizado no se puede cancelar desde esta página.");
+        }
+
+        pagoRepository.deleteByReservaIdReserva(idReserva);
+        reservaRepository.delete(reserva);
+    }
+
+    private String hashToken(String token) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("No se pudo validar el token de cancelación.", error);
+        }
     }
 
     // --- Resuelve las relaciones (cliente/cancha/horario) por su ID real ---
