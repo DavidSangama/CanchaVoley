@@ -19,3 +19,7 @@ In Railway, add `ADMIN_USERNAME` and `ADMIN_PASSWORD` under the backend service'
 ## Customer reservation cancellation
 
 Run `sql/20261002_add_reservation_cancel_token.sql` once against the production PostgreSQL database before deploying changes that add token-based customer cancellation. The cancellation token is returned only when a reservation is created; the database stores only its SHA-256 hash. A cancellation deletes the associated pending/cancelled payment and reservation in one transaction. A payment marked as completed cannot be cancelled by the customer.
+
+## Renumber existing customer, reservation, and payment IDs
+
+Run `sql/20261002_renumber_cliente_reserva_pago_ids.sql` once in DBeaver against the intended PostgreSQL database to renumber existing customer, reservation, and payment IDs consecutively from 1 while retaining their current ID order. The transaction first creates timestamped backup tables for those records and customer-management tokens in the `renta_cancha` schema, updates their foreign keys, and aligns the identity sequences so future IDs continue after the current maximum. Keep the backup tables until the renumbered records and private reservation links have been verified. The script stops without applying changes if it detects relationships different from the schema it was written for.

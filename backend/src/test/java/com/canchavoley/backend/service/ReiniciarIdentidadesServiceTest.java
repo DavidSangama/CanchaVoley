@@ -32,7 +32,7 @@ class ReiniciarIdentidadesServiceTest {
         reiniciarIdentidadesService.reiniciarPagos();
 
         verify(jdbcTemplate).execute(
-                "ALTER SEQUENCE renta_cancha.pago_id_pago_seq MINVALUE 0 RESTART WITH 0");
+                "ALTER SEQUENCE renta_cancha.pago_id_pago_seq MINVALUE 1 RESTART WITH 1");
     }
 
     @Test
