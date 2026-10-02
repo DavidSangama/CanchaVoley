@@ -22,6 +22,12 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
 
     Optional<Reserva> findByIdReservaAndTokenCancelacionHash(Long idReserva, String tokenCancelacionHash);
 
+    boolean existsByFechaAndCanchaIdCanchaAndHorarioIdHorarioAndIdReservaNot(
+            LocalDate fecha,
+            Long idCancha,
+            Long idHorario,
+            Long idReserva);
+
     // Eliminar todas las reservas de una fecha específica
     void deleteByFecha(LocalDate fecha);
 }

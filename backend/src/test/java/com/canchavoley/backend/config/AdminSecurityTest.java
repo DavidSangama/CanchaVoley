@@ -16,6 +16,7 @@ import java.util.Base64;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminController.class)
@@ -67,6 +68,21 @@ class AdminSecurityTest {
         mockMvc.perform(post("/api/reservas/1/cancelar")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tokenCancelacion\":\"test-token\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void permitsTokenBasedCustomerReservationManagementWithoutAdminCredentials() throws Exception {
+        mockMvc.perform(get("/api/reservas/1/gestion")
+                        .header("X-Reservation-Token", "test-token"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void permitsTokenBasedCustomerReschedulingWithoutAdminCredentials() throws Exception {
+        mockMvc.perform(patch("/api/reservas/1/gestion")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tokenCancelacion\":\"test-token\",\"fecha\":\"2026-10-10\",\"idHorario\":1}"))
                 .andExpect(status().isNotFound());
     }
 

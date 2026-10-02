@@ -7,6 +7,7 @@ import { ContactoPage } from './pages/ContactoPage';
 import ReservaPage from './pages/ReservaPage';
 import { ConfirmacionPage } from './pages/ConfirmacionPage';
 import { AdminPage } from './pages/AdminPage';
+import { GestionReservaPage } from './pages/GestionReservaPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/contacto" element={<ContactoPage />} />
         <Route path="/reservar" element={<ReservaPage />} />
         <Route path="/confirmacion" element={<ConfirmacionPage />} />
+        <Route path="/mis-reservas/:id" element={<GestionReservaPage />} />
         <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </BrowserRouter>

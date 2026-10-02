@@ -4,6 +4,8 @@ import com.canchavoley.backend.model.Reserva;
 import com.canchavoley.backend.dto.CancelarReservaRequest;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaDisponibilidadResponse;
+import com.canchavoley.backend.dto.ReservaGestionResponse;
+import com.canchavoley.backend.dto.ReprogramarReservaRequest;
 import com.canchavoley.backend.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -45,6 +47,7 @@ public class ReservaController {
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         return reservaService.obtenerPorFecha(fecha).stream()
                 .map(reserva -> new ReservaDisponibilidadResponse(
+                        reserva.getIdReserva(),
                         reserva.getCancha().getIdCancha(),
                         reserva.getHorario().getIdHorario()))
                 .toList();
@@ -78,6 +81,24 @@ public class ReservaController {
             @RequestBody CancelarReservaRequest solicitud) {
         reservaService.cancelarSolicitudCliente(id, solicitud.tokenCancelacion());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/gestion")
+    public ResponseEntity<ReservaGestionResponse> obtenerGestionCliente(
+            @PathVariable Long id,
+            @RequestHeader("X-Reservation-Token") String tokenGestion) {
+        return ResponseEntity.ok(reservaService.obtenerGestionCliente(id, tokenGestion));
+    }
+
+    @PatchMapping("/{id}/gestion")
+    public ResponseEntity<ReservaGestionResponse> reprogramarReservaCliente(
+            @PathVariable Long id,
+            @RequestBody ReprogramarReservaRequest solicitud) {
+        return ResponseEntity.ok(reservaService.reprogramarComoCliente(
+                id,
+                solicitud.tokenCancelacion(),
+                solicitud.fecha(),
+                solicitud.idHorario()));
     }
 
     // POST 2: Crear reservas en lote

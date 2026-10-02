@@ -12,6 +12,7 @@ import com.canchavoley.backend.repository.HorarioRepository;
 import com.canchavoley.backend.repository.PagoRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
+import com.canchavoley.backend.dto.ReservaGestionResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -81,13 +83,7 @@ public class ReservaService {
 
     @Transactional
     public void cancelarSolicitudCliente(Long idReserva, String tokenCancelacion) {
-        if (tokenCancelacion == null || tokenCancelacion.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-
-        String tokenHash = hashToken(tokenCancelacion);
-        Reserva reserva = reservaRepository.findByIdReservaAndTokenCancelacionHash(idReserva, tokenHash)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Reserva reserva = obtenerReservaConToken(idReserva, tokenCancelacion);
 
         Pago pago = pagoRepository.findByReservaIdReserva(idReserva)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud ya no está pendiente de pago."));
@@ -98,6 +94,68 @@ public class ReservaService {
 
         pagoRepository.deleteByReservaIdReserva(idReserva);
         reservaRepository.delete(reserva);
+    }
+
+    @Transactional(readOnly = true)
+    public ReservaGestionResponse obtenerGestionCliente(Long idReserva, String tokenGestion) {
+        Reserva reserva = obtenerReservaConToken(idReserva, tokenGestion);
+        Pago pago = pagoRepository.findByReservaIdReserva(idReserva)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return crearRespuestaGestion(reserva, pago);
+    }
+
+    @Transactional
+    public ReservaGestionResponse reprogramarComoCliente(
+            Long idReserva,
+            String tokenGestion,
+            LocalDate nuevaFecha,
+            Long idHorario) {
+        Reserva reserva = obtenerReservaConToken(idReserva, tokenGestion);
+        Pago pago = pagoRepository.findByReservaIdReserva(idReserva)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Esta reserva ya no tiene una solicitud de pago activa."));
+
+        if (pago.getEstado() != EstadoPago.PENDIENTE_VERIFICACION) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Solo se pueden reprogramar pagos pendientes de verificación.");
+        }
+        if (nuevaFecha == null || nuevaFecha.isBefore(LocalDate.now(ZoneId.of("America/Lima")))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nueva fecha debe ser hoy o posterior.");
+        }
+        if (idHorario == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecciona un horario.");
+        }
+        if (reservaRepository.existsByFechaAndCanchaIdCanchaAndHorarioIdHorarioAndIdReservaNot(
+                nuevaFecha, reserva.getCancha().getIdCancha(), idHorario, idReserva)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese horario ya está reservado.");
+        }
+
+        Horario horario = horarioRepository.findById(idHorario)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El horario seleccionado no existe."));
+        reserva.setFecha(nuevaFecha);
+        reserva.setHorario(horario);
+        pago.setTotal(horario.getPrecio());
+        pagoRepository.save(pago);
+        Reserva reservaActualizada = reservaRepository.save(reserva);
+        return crearRespuestaGestion(reservaActualizada, pago);
+    }
+
+    private Reserva obtenerReservaConToken(Long idReserva, String token) {
+        if (token == null || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        return reservaRepository.findByIdReservaAndTokenCancelacionHash(idReserva, hashToken(token))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    private ReservaGestionResponse crearRespuestaGestion(Reserva reserva, Pago pago) {
+        return new ReservaGestionResponse(
+                reserva.getIdReserva(),
+                reserva.getFecha(),
+                reserva.getCancha().getIdCancha(),
+                reserva.getCancha().getNumeroCancha(),
+                reserva.getHorario().getIdHorario(),
+                reserva.getHorario().getHora().toString(),
+                reserva.getHorario().getPrecio(),
+                pago.getEstado());
     }
 
     private String hashToken(String token) {

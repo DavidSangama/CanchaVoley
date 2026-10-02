@@ -160,6 +160,8 @@ export function ReservaPage() {
   const [cancelandoSolicitud, setCancelandoSolicitud] = useState(false);
   const [errorCancelacion, setErrorCancelacion] = useState(null);
   const [solicitudCancelada, setSolicitudCancelada] = useState(false);
+  const [enlaceCopiado, setEnlaceCopiado] = useState(false);
+  const [errorCopiarEnlace, setErrorCopiarEnlace] = useState('');
 
   const confirmarReserva = async () => {
     setEnviandoReserva(true);
@@ -189,6 +191,12 @@ export function ReservaPage() {
         fecha: fechaISO,
       });
 
+      if (!nuevaReserva?.idReserva || typeof nuevaReserva.tokenGestion !== 'string' || !nuevaReserva.tokenGestion.trim()) {
+        console.error('El servidor creó la reserva sin devolver su token privado de gestión.');
+        setErrorEnvio('El servidor todavía no está listo para generar el enlace privado. La reserva pudo registrarse; no vuelvas a enviarla y contacta al administrador para verificarla.');
+        return;
+      }
+
       // 3. Registrar el pago
       await PagoService.procesar({
         reserva: { idReserva: nuevaReserva.idReserva },
@@ -197,7 +205,7 @@ export function ReservaPage() {
 
       setDatosConfirmacion({
         idReserva: nuevaReserva.idReserva,
-        tokenCancelacion: nuevaReserva.tokenCancelacion,
+        tokenGestion: nuevaReserva.tokenGestion,
         cancha: canchaSeleccionada,
         fecha: fechaLarga,
         horario: horarioSeleccionado.hora?.slice(0, 5),
@@ -224,10 +232,27 @@ export function ReservaPage() {
     setDatosConfirmacion(null);
     setErrorCancelacion(null);
     setSolicitudCancelada(false);
+    setEnlaceCopiado(false);
+    setErrorCopiarEnlace('');
+  };
+
+  const obtenerEnlaceGestion = () => (
+    `${window.location.origin}/mis-reservas/${datosConfirmacion.idReserva}#${datosConfirmacion.tokenGestion}`
+  );
+
+  const copiarEnlaceGestion = async () => {
+    try {
+      await navigator.clipboard.writeText(obtenerEnlaceGestion());
+      setEnlaceCopiado(true);
+      setErrorCopiarEnlace('');
+    } catch (error) {
+      console.error('No se pudo copiar el enlace privado:', error);
+      setErrorCopiarEnlace('No se pudo copiar automáticamente. Abre “Gestionar reserva” y guarda ese enlace.');
+    }
   };
 
   const cancelarSolicitud = async () => {
-    if (!datosConfirmacion?.tokenCancelacion || !datosConfirmacion?.idReserva) {
+    if (!datosConfirmacion?.tokenGestion || !datosConfirmacion?.idReserva) {
       setErrorCancelacion('No se encontraron los datos necesarios para cancelar la solicitud. Contacta al administrador.');
       return;
     }
@@ -237,7 +262,7 @@ export function ReservaPage() {
     try {
       await ReservaService.cancelarSolicitud(
         datosConfirmacion.idReserva,
-        datosConfirmacion.tokenCancelacion
+        datosConfirmacion.tokenGestion
       );
       setSolicitudCancelada(true);
     } catch (error) {
@@ -287,6 +312,26 @@ export function ReservaPage() {
                 ? 'Tu solicitud fue cancelada y el horario quedó liberado.'
                 : 'Recibimos tu solicitud. El administrador verificará el pago antes de confirmar la reserva.'}
             </p>
+
+            {!solicitudCancelada && (
+              <div className="confirmacion-acciones" style={{ marginBottom: '20px' }}>
+                <Link
+                  className="btn btn-secundario"
+                  to={`/mis-reservas/${datosConfirmacion.idReserva}#${datosConfirmacion.tokenGestion}`}
+                >
+                  Gestionar reserva
+                </Link>
+                <button type="button" className="btn btn-secundario" onClick={copiarEnlaceGestion}>
+                  {enlaceCopiado ? 'Enlace copiado' : 'Copiar enlace privado'}
+                </button>
+              </div>
+            )}
+            {errorCopiarEnlace && <p className="error-cancelacion" role="alert">{errorCopiarEnlace}</p>}
+            {!solicitudCancelada && (
+              <p className="texto-enlace-privado">
+                Guarda este enlace: es la forma de volver a consultar o cambiar tu reserva.
+              </p>
+            )}
 
             {!solicitudCancelada && (
               <>

@@ -26,6 +26,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/reservas/*/cancelar").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/reservas/*/gestion").permitAll()
+                        .requestMatchers(HttpMethod.PATCH, "/api/reservas/*/gestion").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/canchas/**",
                                 "/api/horarios/**",

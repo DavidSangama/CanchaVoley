@@ -1,4 +1,4 @@
 package com.canchavoley.backend.dto;
 
-public record ReservaCreadaResponse(Long idReserva, String tokenCancelacion) {
+public record ReservaCreadaResponse(Long idReserva, String tokenGestion) {
 }

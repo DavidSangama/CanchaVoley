@@ -1,6 +1,8 @@
 package com.canchavoley.backend.service;
 
 import com.canchavoley.backend.model.EstadoPago;
+import com.canchavoley.backend.model.Cancha;
+import com.canchavoley.backend.model.Horario;
 import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.model.Reserva;
 import com.canchavoley.backend.repository.CanchaRepository;
@@ -17,6 +19,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.HexFormat;
 import java.util.Optional;
 
@@ -52,7 +57,7 @@ class ReservaServiceTest {
     private ReservaService reservaService;
 
     @Test
-    void createsReservationWithRandomCancellationTokenAndStoresOnlyItsHash() throws Exception {
+    void createsReservationWithRandomManagementTokenAndStoresOnlyItsHash() throws Exception {
         Reserva reserva = new Reserva();
         when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation -> {
             Reserva saved = invocation.getArgument(0);
@@ -63,9 +68,9 @@ class ReservaServiceTest {
         var response = reservaService.crearConTokenCancelacion(reserva);
 
         assertEquals(42L, response.idReserva());
-        assertTrue(response.tokenCancelacion().length() >= 40);
-        assertNotEquals(response.tokenCancelacion(), reserva.getTokenCancelacionHash());
-        assertEquals(hash(response.tokenCancelacion()), reserva.getTokenCancelacionHash());
+        assertTrue(response.tokenGestion().length() >= 40);
+        assertNotEquals(response.tokenGestion(), reserva.getTokenCancelacionHash());
+        assertEquals(hash(response.tokenGestion()), reserva.getTokenCancelacionHash());
     }
 
     @Test
@@ -112,6 +117,86 @@ class ReservaServiceTest {
         assertEquals(409, error.getStatusCode().value());
         verify(pagoRepository, never()).deleteByReservaIdReserva(any());
         verify(reservaRepository, never()).delete(any(Reserva.class));
+    }
+
+    @Test
+    void returnsReservationDetailsOnlyAfterValidatingManagementToken() throws Exception {
+        String token = "customer-management-token";
+        Reserva reserva = reservationWithSchedule(token);
+        Pago pago = new Pago();
+        pago.setEstado(EstadoPago.PENDIENTE_VERIFICACION);
+        when(reservaRepository.findByIdReservaAndTokenCancelacionHash(42L, hash(token)))
+                .thenReturn(Optional.of(reserva));
+        when(pagoRepository.findByReservaIdReserva(42L)).thenReturn(Optional.of(pago));
+
+        var response = reservaService.obtenerGestionCliente(42L, token);
+
+        assertEquals(42L, response.idReserva());
+        assertEquals(7L, response.idCancha());
+        assertEquals(3L, response.idHorario());
+        assertEquals("10:30", response.hora());
+        assertEquals(EstadoPago.PENDIENTE_VERIFICACION, response.estadoPago());
+    }
+
+    @Test
+    void reprogramsPendingReservationAndUpdatesRequestedAmount() throws Exception {
+        String token = "customer-management-token";
+        Reserva reserva = reservationWithSchedule(token);
+        Pago pago = new Pago();
+        pago.setEstado(EstadoPago.PENDIENTE_VERIFICACION);
+        pago.setTotal(BigDecimal.valueOf(20));
+        Horario nuevoHorario = new Horario(4L, LocalTime.of(11, 30), BigDecimal.valueOf(35));
+        LocalDate nuevaFecha = LocalDate.now().plusDays(2);
+
+        when(reservaRepository.findByIdReservaAndTokenCancelacionHash(42L, hash(token)))
+                .thenReturn(Optional.of(reserva));
+        when(pagoRepository.findByReservaIdReserva(42L)).thenReturn(Optional.of(pago));
+        when(horarioRepository.findById(4L)).thenReturn(Optional.of(nuevoHorario));
+        when(reservaRepository.existsByFechaAndCanchaIdCanchaAndHorarioIdHorarioAndIdReservaNot(
+                nuevaFecha, 7L, 4L, 42L)).thenReturn(false);
+        when(reservaRepository.save(reserva)).thenReturn(reserva);
+
+        var response = reservaService.reprogramarComoCliente(42L, token, nuevaFecha, 4L);
+
+        assertEquals(nuevaFecha, response.fecha());
+        assertEquals(4L, response.idHorario());
+        assertEquals(BigDecimal.valueOf(35), response.precio());
+        assertEquals(BigDecimal.valueOf(35), pago.getTotal());
+        verify(pagoRepository).save(pago);
+        verify(reservaRepository).save(reserva);
+    }
+
+    @Test
+    void doesNotReprogramWhenNewTimeIsAlreadyBooked() throws Exception {
+        String token = "customer-management-token";
+        Reserva reserva = reservationWithSchedule(token);
+        Pago pago = new Pago();
+        pago.setEstado(EstadoPago.PENDIENTE_VERIFICACION);
+        LocalDate nuevaFecha = LocalDate.now().plusDays(2);
+        when(reservaRepository.findByIdReservaAndTokenCancelacionHash(42L, hash(token)))
+                .thenReturn(Optional.of(reserva));
+        when(pagoRepository.findByReservaIdReserva(42L)).thenReturn(Optional.of(pago));
+        when(reservaRepository.existsByFechaAndCanchaIdCanchaAndHorarioIdHorarioAndIdReservaNot(
+                nuevaFecha, 7L, 4L, 42L)).thenReturn(true);
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> reservaService.reprogramarComoCliente(42L, token, nuevaFecha, 4L));
+
+        assertEquals(409, error.getStatusCode().value());
+        verify(reservaRepository, never()).save(any(Reserva.class));
+        verify(pagoRepository, never()).save(any(Pago.class));
+    }
+
+    private Reserva reservationWithSchedule(String token) throws Exception {
+        Cancha cancha = new Cancha();
+        cancha.setIdCancha(7L);
+        cancha.setNumeroCancha(2);
+        Horario horario = new Horario(3L, LocalTime.of(10, 30), BigDecimal.valueOf(20));
+        Reserva reserva = reservaWithToken(token);
+        reserva.setCancha(cancha);
+        reserva.setHorario(horario);
+        reserva.setFecha(LocalDate.now().plusDays(1));
+        return reserva;
     }
 
     private Reserva reservaWithToken(String token) throws Exception {
