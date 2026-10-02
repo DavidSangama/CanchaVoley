@@ -23,3 +23,7 @@ Run `sql/20261002_add_reservation_cancel_token.sql` once against the production 
 ## Renumber existing customer, reservation, and payment IDs
 
 Run `sql/20261002_renumber_cliente_reserva_pago_ids.sql` once in DBeaver against the intended PostgreSQL database to renumber existing customer, reservation, and payment IDs consecutively from 1 while retaining their current ID order. The transaction first creates timestamped backup tables for those records and customer-management tokens in the `renta_cancha` schema, updates their foreign keys, and aligns the identity sequences so future IDs continue after the current maximum. Keep the backup tables until the renumbered records and private reservation links have been verified. The script stops without applying changes if it detects relationships different from the schema it was written for.
+
+## Insert synthetic booking test data
+
+Run `sql/20261002_insert_demo_clients_reservations_payments.sql` in DBeaver only in a database where test bookings are intended. It inserts four clearly labeled synthetic clients, two reservations per client, and one pending payment per reservation. It assigns the first eight unreserved court/time slots from tomorrow through the next 365 days, uses each schedule's configured price, and rolls back the entire transaction if the synthetic DNI values already exist or eight slots are unavailable. The bookings occupy real availability until they are cancelled or deleted.
