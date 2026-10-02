@@ -1,8 +1,10 @@
 package com.canchavoley.backend.repository;
 
+import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -14,9 +16,8 @@ public interface PagoRepository extends JpaRepository<Pago, Long> {
     // Buscar pago asociado a una reserva específica
     Optional<Pago> findByReservaIdReserva(Long idReserva);
 
-    // Calcular la recaudación total acumulada
-    @Query("SELECT SUM(p.total) FROM Pago p")
-    BigDecimal sumarTotalPagos();
+    @Query("SELECT SUM(p.total) FROM Pago p WHERE p.estado = :estado")
+    BigDecimal sumarTotalPorEstado(@Param("estado") EstadoPago estado);
 
     // Eliminar pago asociado a una reserva específica
     void deleteByReservaIdReserva(Long idReserva);

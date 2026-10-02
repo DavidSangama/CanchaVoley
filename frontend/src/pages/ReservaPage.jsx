@@ -157,6 +157,10 @@ export function ReservaPage() {
   const [errorEnvio, setErrorEnvio] = useState(null);
   const [reservaConfirmada, setReservaConfirmada] = useState(false);
   const [datosConfirmacion, setDatosConfirmacion] = useState(null);
+  const [cancelandoSolicitud, setCancelandoSolicitud] = useState(false);
+  const [errorCancelacion, setErrorCancelacion] = useState(null);
+  const [solicitudCancelada, setSolicitudCancelada] = useState(false);
+  const [pagoEliminado, setPagoEliminado] = useState(false);
 
   const confirmarReserva = async () => {
     setEnviandoReserva(true);
@@ -187,12 +191,14 @@ export function ReservaPage() {
       });
 
       // 3. Registrar el pago
-      await PagoService.procesar({
+      const pagoCreado = await PagoService.procesar({
         reserva: { idReserva: nuevaReserva.idReserva },
         total: horarioSeleccionado.precio,
       });
 
       setDatosConfirmacion({
+        idReserva: nuevaReserva.idReserva,
+        idPago: pagoCreado.idPago,
         cancha: canchaSeleccionada,
         fecha: fechaLarga,
         horario: horarioSeleccionado.hora?.slice(0, 5),
@@ -217,6 +223,41 @@ export function ReservaPage() {
     setErrorEnvio(null);
     setReservaConfirmada(false);
     setDatosConfirmacion(null);
+    setErrorCancelacion(null);
+    setSolicitudCancelada(false);
+    setPagoEliminado(false);
+  };
+
+  const cancelarSolicitud = async () => {
+    if (!datosConfirmacion?.idPago || !datosConfirmacion?.idReserva) {
+      setErrorCancelacion('No se encontraron los datos necesarios para cancelar la solicitud. Contacta al administrador.');
+      return;
+    }
+
+    if (!window.confirm('¿Quieres cancelar la solicitud de pago y liberar este horario?')) return;
+
+    setCancelandoSolicitud(true);
+    setErrorCancelacion(null);
+
+    try {
+      if (!pagoEliminado) {
+        await PagoService.eliminar(datosConfirmacion.idPago);
+        setPagoEliminado(true);
+      }
+      try {
+        await ReservaService.eliminar(datosConfirmacion.idReserva);
+      } catch (error) {
+        console.error('No se pudo liberar la reserva después de cancelar el pago:', error);
+        setErrorCancelacion('El pago se canceló, pero no se pudo liberar el horario. Inténtalo de nuevo o contacta al administrador.');
+        return;
+      }
+      setSolicitudCancelada(true);
+    } catch (error) {
+      console.error('Error al cancelar la solicitud de pago:', error);
+      setErrorCancelacion(error.message || 'No se pudo cancelar la solicitud. Inténtalo de nuevo.');
+    } finally {
+      setCancelandoSolicitud(false);
+    }
   };
 
   // ===== PANTALLA DE ÉXITO =====
@@ -241,35 +282,65 @@ export function ReservaPage() {
 
         <main className="container reserva-main">
           <div className="confirmacion-card">
-            <div className="confirmacion-icono">✓</div>
-            <h1>¡Reserva confirmada!</h1>
+            <div className={`confirmacion-icono ${solicitudCancelada ? '' : 'pendiente'}`}>✓</div>
+            <h1>
+              {solicitudCancelada
+                ? 'Solicitud cancelada'
+                : pagoEliminado
+                ? 'Pago cancelado, horario pendiente de liberar'
+                : 'Pago pendiente de verificación'}
+            </h1>
             <p>
-              Te esperamos en la cancha {datosConfirmacion.cancha} el {datosConfirmacion.fecha.toLowerCase()} a las {datosConfirmacion.horario}.
+              {solicitudCancelada
+                ? 'Tu solicitud fue cancelada y el horario quedó liberado.'
+                : pagoEliminado
+                ? 'El pago se eliminó, pero la reserva aún ocupa el horario. Puedes intentar liberar el horario otra vez.'
+                : 'Recibimos tu solicitud. El administrador verificará el pago antes de confirmar la reserva.'}
             </p>
 
-            <div className="confirmacion-detalle">
-              <div className="resumen-fila">
-                <span>Cancha</span>
-                <strong>Cancha {datosConfirmacion.cancha}</strong>
-              </div>
-              <div className="resumen-fila">
-                <span>Fecha</span>
-                <strong>{datosConfirmacion.fecha}</strong>
-              </div>
-              <div className="resumen-fila">
-                <span>Horario</span>
-                <strong>{datosConfirmacion.horario}</strong>
-              </div>
-              <div className="resumen-fila">
-                <span>Total pagado</span>
-                <strong className="total-destacado">S/ {datosConfirmacion.total}</strong>
-              </div>
-            </div>
+            {!solicitudCancelada && (
+              <>
+                <div className="confirmacion-estado" role="status">
+                  {pagoEliminado ? 'Pago cancelado; horario aún reservado' : 'Pendiente de verificación'}
+                </div>
+                <div className="confirmacion-detalle">
+                  <div className="resumen-fila">
+                    <span>Cancha</span>
+                    <strong>Cancha {datosConfirmacion.cancha}</strong>
+                  </div>
+                  <div className="resumen-fila">
+                    <span>Fecha</span>
+                    <strong>{datosConfirmacion.fecha}</strong>
+                  </div>
+                  <div className="resumen-fila">
+                    <span>Horario</span>
+                    <strong>{datosConfirmacion.horario}</strong>
+                  </div>
+                  <div className="resumen-fila">
+                    <span>Monto solicitado</span>
+                    <strong className="total-destacado">S/ {datosConfirmacion.total}</strong>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {errorCancelacion && <p className="error-cancelacion" role="alert">{errorCancelacion}</p>}
 
             <div className="confirmacion-acciones">
-              <button type="button" className="btn btn-secundario" onClick={hacerOtraReserva}>
-                Hacer otra reserva
-              </button>
+              {solicitudCancelada ? (
+                <button type="button" className="btn btn-secundario" onClick={hacerOtraReserva}>
+                  Hacer otra reserva
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-cancelar" onClick={cancelarSolicitud} disabled={cancelandoSolicitud}>
+                    {cancelandoSolicitud ? 'Cancelando...' : pagoEliminado ? 'Reintentar liberar horario' : 'Cancelar solicitud'}
+                  </button>
+                  <button type="button" className="btn btn-secundario" onClick={hacerOtraReserva}>
+                    Hacer otra reserva
+                  </button>
+                </>
+              )}
               <Link className="btn btn-primario" to="/">
                 Volver al inicio
               </Link>

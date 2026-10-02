@@ -70,10 +70,12 @@ export function AdminPage() {
   };
 
   // ---- CÁLCULOS PARA EL DASHBOARD ----
-  const ingresosTotales = pagos.reduce((acum, p) => acum + Number(p.total || 0), 0);
+  const pagosRealizados = pagos.filter((p) => p.estado === 'REALIZADO');
+  const pagosPendientes = pagos.filter((p) => p.estado === 'PENDIENTE_VERIFICACION');
+  const ingresosTotales = pagosRealizados.reduce((acum, p) => acum + Number(p.total || 0), 0);
 
   const ingresosPorCancha = canchas.map((c) => {
-    const total = pagos
+    const total = pagosRealizados
       .filter((p) => p.reserva?.cancha?.idCancha === c.idCancha)
       .reduce((acum, p) => acum + Number(p.total || 0), 0);
     return { numero: c.numeroCancha, total };
@@ -471,9 +473,14 @@ export function AdminPage() {
   const [formPago, setFormPago] = useState({ idReserva: '', total: '' });
   const [guardandoPago, setGuardandoPago] = useState(false);
   const [errorPagoForm, setErrorPagoForm] = useState('');
+  const [actualizandoEstadosPago, setActualizandoEstadosPago] = useState({});
+  const [erroresEstadoPago, setErroresEstadoPago] = useState({});
 
-  const totalPagos = pagos.reduce((acum, p) => acum + Number(p.total || 0), 0);
-  const ticketPromedio = pagos.length > 0 ? Math.round(totalPagos / pagos.length) : 0;
+  const totalPagosRealizados = pagosRealizados.reduce((acum, p) => acum + Number(p.total || 0), 0);
+  const totalPagosPendientes = pagosPendientes.reduce((acum, p) => acum + Number(p.total || 0), 0);
+  const ticketPromedio = pagosRealizados.length > 0
+    ? Math.round(totalPagosRealizados / pagosRealizados.length)
+    : 0;
 
   const canchaConMasIngresos = ingresosPorCancha.reduce(
     (mejor, c) => (c.total > (mejor?.total || 0) ? c : mejor),
@@ -558,6 +565,26 @@ export function AdminPage() {
       });
   };
 
+  const actualizarEstadoPago = async (pago, nuevoEstado) => {
+    setActualizandoEstadosPago((actualizando) => ({ ...actualizando, [pago.idPago]: true }));
+    setErroresEstadoPago((errores) => ({ ...errores, [pago.idPago]: '' }));
+
+    try {
+      await PagoService.actualizarEstado(pago.idPago, nuevoEstado);
+      setPagos((listaPagos) => listaPagos.map((actual) => (
+        actual.idPago === pago.idPago ? { ...actual, estado: nuevoEstado } : actual
+      )));
+    } catch (err) {
+      console.error('Error al actualizar el estado del pago:', err);
+      setErroresEstadoPago((errores) => ({
+        ...errores,
+        [pago.idPago]: 'No se pudo actualizar el estado. Inténtalo de nuevo.',
+      }));
+    } finally {
+      setActualizandoEstadosPago((actualizando) => ({ ...actualizando, [pago.idPago]: false }));
+    }
+  };
+
   return (
     <div className="admin-layout">
       <aside className="admin-sidebar">
@@ -598,7 +625,7 @@ export function AdminPage() {
                 <div className="admin-encabezado">
                   <div>
                     <h1>Dashboard</h1>
-                    <p>Resumen general de reservas e ingresos.</p>
+                    <p>Resumen general de reservas y solicitudes de pago.</p>
                   </div>
                 </div>
 
@@ -609,9 +636,9 @@ export function AdminPage() {
                     <small>registradas</small>
                   </div>
                   <div className="admin-tarjeta" style={{ animationDelay: '0.06s' }}>
-                    <span>Ingresos totales</span>
+                    <span>Ingresos realizados</span>
                     <strong>S/ {ingresosTotales}</strong>
-                    <small>suma de pagos</small>
+                    <small>pagos verificados</small>
                   </div>
                   <div className="admin-tarjeta" style={{ animationDelay: '0.12s' }}>
                     <span>Canchas</span>
@@ -627,7 +654,7 @@ export function AdminPage() {
 
                 <div className="admin-paneles-dobles">
                   <div className="admin-panel" style={{ animationDelay: '0.24s' }}>
-                    <h3>Ingresos por cancha</h3>
+                    <h3>Ingresos realizados por cancha</h3>
                     <div className="admin-barras">
                       {ingresosPorCancha.map((c) => (
                         <div key={c.numero} className="admin-barra-col">
@@ -996,7 +1023,7 @@ export function AdminPage() {
                 <div className="admin-encabezado">
                   <div>
                     <h1>Pagos</h1>
-                    <p>Pagos registrados por reserva.</p>
+                    <p>Administra y verifica el estado de cada pago.</p>
                   </div>
                   <button type="button" className="admin-btn-primario" onClick={abrirNuevoPago}>
                     Nuevo pago
@@ -1005,19 +1032,24 @@ export function AdminPage() {
 
                 <div className="admin-tarjetas">
                   <div className="admin-tarjeta" style={{ animationDelay: '0s' }}>
-                    <span>Total pagos</span>
-                    <strong>S/ {totalPagos}</strong>
-                    <small>{pagos.length} pagos registrados</small>
+                    <span>Ingresos realizados</span>
+                    <strong>S/ {totalPagosRealizados}</strong>
+                    <small>{pagosRealizados.length} pagos realizados</small>
                   </div>
                   <div className="admin-tarjeta" style={{ animationDelay: '0.06s' }}>
-                    <span>Cancha con más ingresos</span>
-                    <strong>{canchaConMasIngresos ? `Cancha ${canchaConMasIngresos.numero}` : '—'}</strong>
-                    <small>S/ {canchaConMasIngresos?.total || 0}</small>
+                    <span>Monto pendiente</span>
+                    <strong>S/ {totalPagosPendientes}</strong>
+                    <small>{pagosPendientes.length} por verificar</small>
                   </div>
                   <div className="admin-tarjeta" style={{ animationDelay: '0.12s' }}>
-                    <span>Ticket promedio</span>
+                    <span>Cancha con más ingresos</span>
+                    <strong>{canchaConMasIngresos ? `Cancha ${canchaConMasIngresos.numero}` : '—'}</strong>
+                    <small>S/ {canchaConMasIngresos?.total || 0} realizados</small>
+                  </div>
+                  <div className="admin-tarjeta" style={{ animationDelay: '0.18s' }}>
+                    <span>Ticket promedio realizado</span>
                     <strong>S/ {ticketPromedio}</strong>
-                    <small>por reserva</small>
+                    <small>por pago verificado</small>
                   </div>
                 </div>
 
@@ -1063,6 +1095,7 @@ export function AdminPage() {
                         <th>ID pago</th>
                         <th>ID reserva</th>
                         <th>Total</th>
+                        <th>Estado</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
@@ -1072,6 +1105,24 @@ export function AdminPage() {
                           <td>{p.idPago}</td>
                           <td>{p.reserva?.idReserva}</td>
                           <td>S/ {Number(p.total)}</td>
+                          <td>
+                            <select
+                              className="admin-estado-select"
+                              aria-label={`Estado del pago ${p.idPago}`}
+                              value={p.estado || 'PENDIENTE_VERIFICACION'}
+                              disabled={actualizandoEstadosPago[p.idPago]}
+                              onChange={(e) => actualizarEstadoPago(p, e.target.value)}
+                            >
+                              <option value="PENDIENTE_VERIFICACION">Pendiente de verificación</option>
+                              <option value="REALIZADO">Pago realizado</option>
+                              <option value="CANCELADO">Pago cancelado</option>
+                            </select>
+                            {erroresEstadoPago[p.idPago] && (
+                              <small className="admin-error-estado" role="alert">
+                                {erroresEstadoPago[p.idPago]}
+                              </small>
+                            )}
+                          </td>
                           <td>
                             <button type="button" className="admin-link-editar" onClick={() => abrirEditarPago(p)}>
                               Editar

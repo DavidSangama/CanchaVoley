@@ -1,5 +1,6 @@
 package com.canchavoley.backend.controller;
 
+import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.service.PagoService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +86,14 @@ public class PagoController {
     @PutMapping("/{id}/total")
     public ResponseEntity<Pago> actualizarMontoPago(@PathVariable Long id, @RequestParam BigDecimal nuevoTotal) {
         return ResponseEntity.ok(pagoService.actualizarMonto(id, nuevoTotal));
+    }
+
+    // PUT 3: Actualizar el estado de verificación del pago
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<Pago> actualizarEstadoPago(
+            @PathVariable Long id,
+            @RequestParam EstadoPago nuevoEstado) {
+        return ResponseEntity.ok(pagoService.actualizarEstado(id, nuevoEstado));
     }
 
     // ==========================================

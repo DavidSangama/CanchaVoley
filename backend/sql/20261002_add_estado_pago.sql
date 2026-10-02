@@ -1,0 +1,6 @@
+ALTER TABLE renta_cancha.pago
+    ADD COLUMN estado VARCHAR(30) NOT NULL DEFAULT 'PENDIENTE_VERIFICACION';
+
+ALTER TABLE renta_cancha.pago
+    ADD CONSTRAINT pago_estado_valido
+    CHECK (estado IN ('PENDIENTE_VERIFICACION', 'REALIZADO', 'CANCELADO'));

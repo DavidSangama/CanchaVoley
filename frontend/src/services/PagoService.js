@@ -12,5 +12,9 @@ export const PagoService = {
       method: "PUT",
       body: JSON.stringify(pagoData),
     }),
+  actualizarEstado: (id, nuevoEstado) =>
+    fetchAPI(`/pagos/${id}/estado?nuevoEstado=${encodeURIComponent(nuevoEstado)}`, {
+      method: "PUT",
+    }),
   eliminar: (id) => fetchAPI(`/pagos/${id}`, { method: "DELETE" }),
 };

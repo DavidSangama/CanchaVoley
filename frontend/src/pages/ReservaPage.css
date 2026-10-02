@@ -550,6 +550,11 @@
   justify-content: center;
 }
 
+.confirmacion-icono.pendiente {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 .confirmacion-card h1 {
   font-size: 26px;
   font-weight: 800;
@@ -575,6 +580,22 @@
   margin-bottom: 28px;
 }
 
+.confirmacion-estado {
+  display: inline-block;
+  margin: 0 0 20px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.error-cancelacion {
+  color: #b91c1c !important;
+  margin-bottom: 20px !important;
+}
+
 .total-destacado {
   color: #2563eb !important;
   font-size: 18px;
@@ -585,4 +606,19 @@
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.btn-cancelar {
+  border: 1px solid #dc2626;
+  background: #fff;
+  color: #b91c1c;
+}
+
+.btn-cancelar:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.btn-cancelar:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }

@@ -1,5 +1,6 @@
 package com.canchavoley.backend.service;
 
+import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.model.Reserva;
 import com.canchavoley.backend.repository.PagoRepository;
@@ -35,7 +36,7 @@ public class PagoService {
     }
 
     public BigDecimal obtenerSumaTotal() {
-        BigDecimal total = pagoRepository.sumarTotalPagos();
+        BigDecimal total = pagoRepository.sumarTotalPorEstado(EstadoPago.REALIZADO);
         return total != null ? total : BigDecimal.ZERO;
     }
 
@@ -54,11 +55,15 @@ public class PagoService {
 
     // --- POSTs ---
     public Pago guardar(Pago pago) {
+        pago.setEstado(EstadoPago.PENDIENTE_VERIFICACION);
         return pagoRepository.save(resolverReserva(pago));
     }
 
     public List<Pago> guardarVarios(List<Pago> pagos) {
-        pagos.forEach(this::resolverReserva);
+        pagos.forEach(pago -> {
+            pago.setEstado(EstadoPago.PENDIENTE_VERIFICACION);
+            resolverReserva(pago);
+        });
         return pagoRepository.saveAll(pagos);
     }
 
@@ -75,6 +80,13 @@ public class PagoService {
         Pago pago = pagoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + id));
         pago.setTotal(nuevoTotal);
+        return pagoRepository.save(pago);
+    }
+
+    public Pago actualizarEstado(Long id, EstadoPago nuevoEstado) {
+        Pago pago = pagoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + id));
+        pago.setEstado(nuevoEstado);
         return pagoRepository.save(pago);
     }
 

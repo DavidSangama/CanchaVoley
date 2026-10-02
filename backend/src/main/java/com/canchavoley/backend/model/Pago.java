@@ -19,6 +19,10 @@ public class Pago {
     @Column(name = "total", nullable = false, precision = 10, scale = 2)
     private BigDecimal total;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado", nullable = false, length = 30)
+    private EstadoPago estado = EstadoPago.PENDIENTE_VERIFICACION;
+
     public Pago() {
     }
 
@@ -50,5 +54,13 @@ public class Pago {
 
     public void setTotal(BigDecimal total) {
         this.total = total;
+    }
+
+    public EstadoPago getEstado() {
+        return estado;
+    }
+
+    public void setEstado(EstadoPago estado) {
+        this.estado = estado;
     }
 }
