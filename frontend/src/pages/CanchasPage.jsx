@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navbar } from "../componets/Navbar";
-import { Footer } from "../componets/Footer";
-import { CanchasCard } from "../componets/CanchasCard";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
+import { CanchasCard } from "../components/CanchasCard";
 import { CanchaService } from "../services/CanchaService";
 
 export const CanchasPage = () => {

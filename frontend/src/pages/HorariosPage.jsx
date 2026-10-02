@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Navbar } from "../componets/Navbar";
-import { Footer } from "../componets/Footer";
-import { SlotCard } from "../componets/SlotCard";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
+import { SlotCard } from "../components/SlotCard";
 
 export const HorariosPage = () => {
   const [fecha, setFecha] = useState("2026-09-28");

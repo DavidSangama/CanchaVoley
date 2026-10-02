@@ -11,7 +11,13 @@ export function ReservaPage() {
   const canchaParam = searchParams.get('cancha');
 
   const [pasoActual, setPasoActual] = useState(1);
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(28); // 28 sep 2026 por defecto
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const [mesVisible, setMesVisible] = useState(hoy.getMonth());
+  const [anioVisible, setAnioVisible] = useState(hoy.getFullYear());
 
   const [canchaSeleccionada, setCanchaSeleccionada] = useState(
     canchaParam ? parseInt(canchaParam, 10) : null
@@ -29,14 +35,49 @@ export function ReservaPage() {
     { id: 5, nombre: 'Cancha 5' },
   ];
 
-  const diasDeshabilitados = Array.from({ length: 18 }, (_, i) => i + 1);
-  const diasHabilitados = Array.from({ length: 12 }, (_, i) => i + 19);
+  const NOMBRES_MES = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  ];
+  const NOMBRES_MES_ABREV = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const NOMBRES_DIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const NOMBRES_DIA_ABREV = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+  const esMismaFecha = (a, b) =>
+    a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+  const diasDelMes = (() => {
+    const primerDia = new Date(anioVisible, mesVisible, 1);
+    const totalDias = new Date(anioVisible, mesVisible + 1, 0).getDate();
+    const offsetInicio = (primerDia.getDay() + 6) % 7; // 0 = lunes
+
+    const dias = [];
+    for (let d = 1; d <= totalDias; d++) {
+      const fecha = new Date(anioVisible, mesVisible, d);
+      dias.push({ dia: d, fecha, deshabilitado: fecha < hoy });
+    }
+    return { offsetInicio, dias };
+  })();
+
+  const irMesAnterior = () => {
+    if (anioVisible === hoy.getFullYear() && mesVisible === hoy.getMonth()) return;
+    const nuevaFecha = new Date(anioVisible, mesVisible - 1, 1);
+    setAnioVisible(nuevaFecha.getFullYear());
+    setMesVisible(nuevaFecha.getMonth());
+  };
+
+  const irMesSiguiente = () => {
+    const nuevaFecha = new Date(anioVisible, mesVisible + 1, 1);
+    setAnioVisible(nuevaFecha.getFullYear());
+    setMesVisible(nuevaFecha.getMonth());
+  };
+
+  const esMesActual = anioVisible === hoy.getFullYear() && mesVisible === hoy.getMonth();
 
   // ---- PASO 2: HORARIOS ----
-  const ANIO_RESERVA = 2026;
-  const MES_RESERVA = 9;
+  const pad2 = (n) => String(n).padStart(2, '0');
   const fechaISO = fechaSeleccionada
-    ? `${ANIO_RESERVA}-${String(MES_RESERVA).padStart(2, '0')}-${String(fechaSeleccionada).padStart(2, '0')}`
+    ? `${fechaSeleccionada.getFullYear()}-${pad2(fechaSeleccionada.getMonth() + 1)}-${pad2(fechaSeleccionada.getDate())}`
     : null;
 
   const [horarios, setHorarios] = useState([]);
@@ -78,8 +119,15 @@ export function ReservaPage() {
     };
   }, [pasoActual, canchaSeleccionada, fechaISO]);
 
-  const fechaTexto = fechaSeleccionada ? `lunes ${fechaSeleccionada} de septiembre` : '';
-  const fechaLarga = fechaSeleccionada ? `Lunes ${fechaSeleccionada} de septiembre de ${ANIO_RESERVA}` : '';
+  const fechaTexto = fechaSeleccionada
+    ? `${NOMBRES_DIA[fechaSeleccionada.getDay()]} ${fechaSeleccionada.getDate()} de ${NOMBRES_MES[fechaSeleccionada.getMonth()]}`
+    : '';
+  const fechaLarga = fechaSeleccionada
+    ? `${NOMBRES_DIA[fechaSeleccionada.getDay()].charAt(0).toUpperCase() + NOMBRES_DIA[fechaSeleccionada.getDay()].slice(1)} ${fechaSeleccionada.getDate()} de ${NOMBRES_MES[fechaSeleccionada.getMonth()]} de ${fechaSeleccionada.getFullYear()}`
+    : '';
+  const fechaCorta = fechaSeleccionada
+    ? `${NOMBRES_DIA_ABREV[fechaSeleccionada.getDay()]} ${fechaSeleccionada.getDate()} ${NOMBRES_MES_ABREV[fechaSeleccionada.getMonth()]} ${fechaSeleccionada.getFullYear()}`
+    : '';
 
   // ---- PASO 3: TUS DATOS ----
   const [datosCliente, setDatosCliente] = useState({
@@ -296,9 +344,20 @@ export function ReservaPage() {
 
                   <div className="calendario-box">
                     <div className="calendario-header">
-                      <button type="button" className="cal-btn-nav">‹</button>
-                      <span className="cal-mes">Septiembre 2026</span>
-                      <button type="button" className="cal-btn-nav">›</button>
+                      <button
+                        type="button"
+                        className="cal-btn-nav"
+                        onClick={irMesAnterior}
+                        disabled={esMesActual}
+                      >
+                        ‹
+                      </button>
+                      <span className="cal-mes">
+                        {NOMBRES_MES[mesVisible].charAt(0).toUpperCase() + NOMBRES_MES[mesVisible].slice(1)} {anioVisible}
+                      </span>
+                      <button type="button" className="cal-btn-nav" onClick={irMesSiguiente}>
+                        ›
+                      </button>
                     </div>
 
                     <div className="calendario-dias-semana">
@@ -307,20 +366,19 @@ export function ReservaPage() {
                     </div>
 
                     <div className="calendario-grid">
-                      <div className="cal-dia vacio"></div>
-
-                      {diasDeshabilitados.map((dia) => (
-                        <button key={`dis-${dia}`} className="cal-dia deshabilitado" disabled>
-                          {dia}
-                        </button>
+                      {Array.from({ length: diasDelMes.offsetInicio }).map((_, i) => (
+                        <div key={`vacio-${i}`} className="cal-dia vacio"></div>
                       ))}
 
-                      {diasHabilitados.map((dia) => (
+                      {diasDelMes.dias.map(({ dia, fecha, deshabilitado }) => (
                         <button
-                          key={`hab-${dia}`}
+                          key={dia}
                           type="button"
-                          className={`cal-dia habilitado ${fechaSeleccionada === dia ? 'seleccionado' : ''}`}
-                          onClick={() => setFechaSeleccionada(dia)}
+                          className={`cal-dia ${deshabilitado ? 'deshabilitado' : 'habilitado'} ${
+                            esMismaFecha(fecha, fechaSeleccionada) ? 'seleccionado' : ''
+                          }`}
+                          disabled={deshabilitado}
+                          onClick={() => setFechaSeleccionada(fecha)}
                         >
                           {dia}
                         </button>
@@ -578,7 +636,7 @@ export function ReservaPage() {
             <div className="resumen-filas">
               <div className="resumen-fila">
                 <span>Fecha</span>
-                <strong>{fechaSeleccionada ? `Lun ${fechaSeleccionada} sep 2026` : '—'}</strong>
+                <strong>{fechaCorta || '—'}</strong>
               </div>
 
               <div className="resumen-fila">
