@@ -896,7 +896,7 @@ export function AdminPage() {
                   <table className="admin-tabla">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>N°</th>
                         <th>Cliente</th>
                         <th>Cancha</th>
                         <th>Fecha</th>
@@ -907,9 +907,9 @@ export function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {reservasFiltradas.map((r) => (
+                      {reservasFiltradas.map((r, index) => (
                         <tr key={r.idReserva}>
-                          <td>{r.idReserva}</td>
+                          <td>{index + 1}</td>
                           <td>{r.cliente?.nombre} {r.cliente?.apellido}</td>
                           <td>{r.cancha?.numeroCancha}</td>
                           <td>{formatearFechaCorta2(r.fecha)}</td>
@@ -981,15 +981,15 @@ export function AdminPage() {
                   <table className="admin-tabla">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>N°</th>
                         <th>Número de cancha</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {canchasFiltradas.map((c) => (
+                      {canchasFiltradas.map((c, index) => (
                         <tr key={c.idCancha}>
-                          <td>{c.idCancha}</td>
+                          <td>{index + 1}</td>
                           <td>{c.numeroCancha}</td>
                           <td>
                             <button type="button" className="admin-link-editar" onClick={() => abrirEditarCancha(c)}>
@@ -1067,7 +1067,7 @@ export function AdminPage() {
                   <table className="admin-tabla">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>N°</th>
                         <th>Nombre</th>
                         <th>Apellido</th>
                         <th>DNI</th>
@@ -1076,9 +1076,9 @@ export function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clientesFiltrados.map((c) => (
+                      {clientesFiltrados.map((c, index) => (
                         <tr key={c.idCliente}>
-                          <td>{c.idCliente}</td>
+                          <td>{index + 1}</td>
                           <td>{c.nombre}</td>
                           <td>{c.apellido}</td>
                           <td>{c.dni}</td>
@@ -1148,16 +1148,16 @@ export function AdminPage() {
                   <table className="admin-tabla">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>N°</th>
                         <th>Hora</th>
                         <th>Precio por hora</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {horariosFiltrados.map((h) => (
+                      {horariosFiltrados.map((h, index) => (
                         <tr key={h.idHorario}>
-                          <td>{h.idHorario}</td>
+                          <td>{index + 1}</td>
                           <td>{h.hora?.slice(0, 5)}</td>
                           <td>S/ {Number(h.precio)}</td>
                           <td>
@@ -1286,18 +1286,21 @@ export function AdminPage() {
                   <table className="admin-tabla">
                     <thead>
                       <tr>
-                        <th>ID pago</th>
-                        <th>ID reserva</th>
+                        <th>N° pago</th>
+                        <th>Cliente</th>
                         <th>Total</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pagosFiltrados.map((p) => (
+                      {pagosFiltrados.map((p, index) => (
                         <tr key={p.idPago}>
-                          <td>{p.idPago}</td>
-                          <td>{p.reserva?.idReserva}</td>
+                          <td>{index + 1}</td>
+                          <td>{p.reserva?.cliente
+                            ? `${p.reserva.cliente.nombre} ${p.reserva.cliente.apellido}`
+                            : 'Cliente no disponible'}
+                          </td>
                           <td>S/ {Number(p.total)}</td>
                           <td>{ESTADOS_PAGO[p.estado] || ESTADOS_PAGO.PENDIENTE_VERIFICACION}</td>
                           <td>

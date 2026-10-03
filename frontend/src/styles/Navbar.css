@@ -37,11 +37,25 @@
   color: #fff;
   font-size: 18px;
   font-weight: 800;
+  box-shadow: 0 3px 8px rgba(29, 78, 216, .2);
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.marca:hover .logo,
+.marca:focus-visible .logo {
+  transform: translateY(-2px) rotate(-12deg) scale(1.1);
+  box-shadow: 0 7px 14px rgba(29, 78, 216, .3);
 }
 
 .marca-nombre {
   font-size: 18px;
   font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo {
+    transition: none;
+  }
 }
 
 .menu {
