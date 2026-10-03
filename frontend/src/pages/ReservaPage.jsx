@@ -8,12 +8,63 @@ import { ClienteService } from '../services/ClienteService';
 import { PagoService } from '../services/PagoService';
 import '../styles/ReservaPage.css';
 
+const CLAVE_BORRADOR_RESERVA = 'reservation_draft';
+const DATOS_CLIENTE_VACIOS = { nombre: '', apellido: '', dni: '', telefono: '' };
+
+const eliminarBorradorReserva = () => {
+  try {
+    sessionStorage.removeItem(CLAVE_BORRADOR_RESERVA);
+  } catch (error) {
+    console.error('No se pudo eliminar el borrador de reserva:', error);
+  }
+};
+
+const cargarBorradorReserva = () => {
+  try {
+    const borrador = JSON.parse(sessionStorage.getItem(CLAVE_BORRADOR_RESERVA) || 'null');
+    if (!borrador || typeof borrador !== 'object') return null;
+
+    const fecha = typeof borrador.fecha === 'string'
+      ? new Date(`${borrador.fecha}T00:00:00`)
+      : null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fechaValida = fecha && !Number.isNaN(fecha.getTime()) && fecha >= hoy ? fecha : null;
+    const datos = borrador.datosCliente && typeof borrador.datosCliente === 'object'
+      ? borrador.datosCliente
+      : {};
+    const paso = Number(borrador.paso);
+
+    return {
+      paso: fechaValida && Number.isInteger(paso) && paso >= 1 && paso <= 4 ? paso : 1,
+      fecha: fechaValida,
+      canchaId: Number.isInteger(Number(borrador.canchaId)) && Number(borrador.canchaId) > 0
+        ? Number(borrador.canchaId)
+        : null,
+      horarioId: Number.isInteger(Number(borrador.horarioId)) && Number(borrador.horarioId) > 0
+        ? Number(borrador.horarioId)
+        : null,
+      horarioKey: typeof borrador.horarioKey === 'string' ? borrador.horarioKey : null,
+      datosCliente: {
+        nombre: typeof datos.nombre === 'string' ? datos.nombre : '',
+        apellido: typeof datos.apellido === 'string' ? datos.apellido : '',
+        dni: typeof datos.dni === 'string' ? datos.dni : '',
+        telefono: typeof datos.telefono === 'string' ? datos.telefono : '',
+      },
+    };
+  } catch (error) {
+    console.error('No se pudo recuperar el borrador de reserva:', error);
+    return null;
+  }
+};
+
 export function ReservaPage() {
   const [searchParams] = useSearchParams();
   const canchaParam = searchParams.get('cancha');
+  const [borradorInicial] = useState(cargarBorradorReserva);
 
-  const [pasoActual, setPasoActual] = useState(1);
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
+  const [pasoActual, setPasoActual] = useState(borradorInicial?.paso || 1);
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(borradorInicial?.fecha || null);
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -23,7 +74,7 @@ export function ReservaPage() {
 
   const [seleccionCancha, setSeleccionCancha] = useState(() => ({
     parametro: canchaParam,
-    id: canchaParam ? parseInt(canchaParam, 10) : null,
+    id: canchaParam ? parseInt(canchaParam, 10) : borradorInicial?.canchaId || null,
   }));
   const canchaSeleccionada = seleccionCancha.parametro === canchaParam
     ? seleccionCancha.id
@@ -108,7 +159,11 @@ export function ReservaPage() {
     ocupados: [],
     error: null,
   });
-  const [seleccionHorario, setSeleccionHorario] = useState({ clave: null, horario: null });
+  const [seleccionHorario, setSeleccionHorario] = useState({
+    clave: borradorInicial?.horarioKey || null,
+    id: borradorInicial?.horarioId || null,
+    horario: null,
+  });
   const disponibilidadActual = datosDisponibilidad.clave === claveDisponibilidad;
   const horarios = disponibilidadActual ? datosDisponibilidad.horarios : [];
   const horariosOcupados = disponibilidadActual ? datosDisponibilidad.ocupados : [];
@@ -119,7 +174,7 @@ export function ReservaPage() {
     : null;
 
   useEffect(() => {
-    if (pasoActual !== 2 || !claveDisponibilidad) return;
+    if (pasoActual < 2 || !claveDisponibilidad || datosDisponibilidad.clave === claveDisponibilidad) return;
 
     let cancelado = false;
     Promise.all([
@@ -137,6 +192,21 @@ export function ReservaPage() {
           ocupados,
           error: null,
         });
+        setSeleccionHorario((actual) => {
+          const idGuardado = actual.clave === claveDisponibilidad
+            ? actual.id
+            : borradorInicial?.horarioKey === claveDisponibilidad
+              ? borradorInicial.horarioId
+              : null;
+          const horario = listaHorarios.find((item) => (
+            item.idHorario === idGuardado && !ocupados.includes(item.idHorario)
+          ));
+          return {
+            clave: claveDisponibilidad,
+            id: horario?.idHorario || null,
+            horario: horario || null,
+          };
+        });
       })
       .catch((err) => {
         console.error('Error al cargar horarios:', err);
@@ -153,7 +223,7 @@ export function ReservaPage() {
     return () => {
       cancelado = true;
     };
-  }, [pasoActual, claveDisponibilidad, fechaISO, canchaSeleccionada]);
+  }, [pasoActual, claveDisponibilidad, fechaISO, canchaSeleccionada, borradorInicial, datosDisponibilidad.clave]);
 
   const fechaTexto = fechaSeleccionada
     ? `${NOMBRES_DIA[fechaSeleccionada.getDay()]} ${fechaSeleccionada.getDate()} de ${NOMBRES_MES[fechaSeleccionada.getMonth()]}`
@@ -166,13 +236,25 @@ export function ReservaPage() {
     : '';
 
   // ---- PASO 3: TUS DATOS ----
-  const [datosCliente, setDatosCliente] = useState({
-    nombre: '',
-    apellido: '',
-    dni: '',
-    telefono: '',
-  });
+  const [datosCliente, setDatosCliente] = useState(
+    borradorInicial?.datosCliente || DATOS_CLIENTE_VACIOS
+  );
   const [erroresDatos, setErroresDatos] = useState({});
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CLAVE_BORRADOR_RESERVA, JSON.stringify({
+        paso: pasoActual,
+        fecha: fechaISO,
+        canchaId: canchaSeleccionada,
+        horarioId: seleccionHorario.clave === claveDisponibilidad ? seleccionHorario.id : null,
+        horarioKey: seleccionHorario.clave === claveDisponibilidad ? claveDisponibilidad : null,
+        datosCliente,
+      }));
+    } catch (error) {
+      console.error('No se pudo guardar el borrador de reserva:', error);
+    }
+  }, [pasoActual, fechaISO, canchaSeleccionada, claveDisponibilidad, seleccionHorario, datosCliente]);
 
   const actualizarCampo = (campo, valor) => {
     setDatosCliente((prev) => ({ ...prev, [campo]: valor }));
@@ -239,6 +321,7 @@ export function ReservaPage() {
         total: horarioSeleccionado.precio,
       });
 
+      eliminarBorradorReserva();
       setDatosConfirmacion({
         idReserva: nuevaReserva.idReserva,
         tokenGestion: nuevaReserva.tokenGestion,
@@ -257,11 +340,12 @@ export function ReservaPage() {
   };
 
   const hacerOtraReserva = () => {
+    eliminarBorradorReserva();
     setPasoActual(1);
     setFechaSeleccionada(null);
     seleccionarCancha(null);
-    setSeleccionHorario({ clave: null, horario: null });
-    setDatosCliente({ nombre: '', apellido: '', dni: '', telefono: '' });
+    setSeleccionHorario({ clave: null, id: null, horario: null });
+    setDatosCliente(DATOS_CLIENTE_VACIOS);
     setErroresDatos({});
     setErrorEnvio(null);
     setReservaConfirmada(false);
@@ -300,6 +384,7 @@ export function ReservaPage() {
         datosConfirmacion.idReserva,
         datosConfirmacion.tokenGestion
       );
+      eliminarBorradorReserva();
       setSolicitudCancelada(true);
     } catch (error) {
       console.error('Error al cancelar la solicitud de pago:', error);
@@ -569,7 +654,11 @@ export function ReservaPage() {
                             type="button"
                             className={`horario-slot ${ocupado ? 'ocupado' : seleccionado ? 'seleccionado' : 'disponible'}`}
                             disabled={ocupado}
-                            onClick={() => setSeleccionHorario({ clave: claveDisponibilidad, horario: h })}
+                            onClick={() => setSeleccionHorario({
+                              clave: claveDisponibilidad,
+                              id: h.idHorario,
+                              horario: h,
+                            })}
                           >
                             <strong>{h.hora?.slice(0, 5)}</strong>
                             <span>S/ {Number(h.precio)}</span>

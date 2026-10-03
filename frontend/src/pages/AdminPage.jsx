@@ -25,6 +25,14 @@ const ESTADOS_PAGO = {
   CANCELADO: 'Pago cancelado',
 };
 
+const obtenerDatosAdmin = () => Promise.all([
+  CanchaService.obtenerTodas(),
+  ClienteService.obtenerTodos(),
+  ReservaService.obtenerTodas(),
+  PagoService.obtenerTodos(),
+  HorarioService.obtenerTodos(),
+]);
+
 export function AdminPage() {
   const navigate = useNavigate();
   const [seccionActiva, setSeccionActiva] = useState('dashboard');
@@ -45,38 +53,51 @@ export function AdminPage() {
     }
   }, [navigate]);
 
+  const aplicarDatosAdmin = useCallback(([listaCanchas, listaClientes, listaReservas, listaPagos, listaHorarios]) => {
+    setCanchas(listaCanchas);
+    setClientes(listaClientes);
+    setReservas(listaReservas);
+    setPagos(listaPagos);
+    setHorarios(listaHorarios);
+  }, []);
+
+  const manejarErrorCargaAdmin = useCallback((err) => {
+    console.error('Error al cargar datos del admin:', err);
+    if (err.status === 401) {
+      sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
+      navigate('/');
+      return;
+    }
+    setError('No se pudieron cargar los datos del panel.');
+  }, [navigate]);
+
   const recargarDatos = useCallback(() => {
     setCargando(true);
     setError(null);
-    return Promise.all([
-      CanchaService.obtenerTodas(),
-      ClienteService.obtenerTodos(),
-      ReservaService.obtenerTodas(),
-      PagoService.obtenerTodos(),
-      HorarioService.obtenerTodos(),
-    ])
-      .then(([listaCanchas, listaClientes, listaReservas, listaPagos, listaHorarios]) => {
-        setCanchas(listaCanchas);
-        setClientes(listaClientes);
-        setReservas(listaReservas);
-        setPagos(listaPagos);
-        setHorarios(listaHorarios);
-      })
-      .catch((err) => {
-        console.error('Error al cargar datos del admin:', err);
-        if (err.status === 401) {
-          sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
-          navigate('/');
-          return;
-        }
-        setError('No se pudieron cargar los datos del panel.');
-      })
+    return obtenerDatosAdmin()
+      .then(aplicarDatosAdmin)
+      .catch(manejarErrorCargaAdmin)
       .finally(() => setCargando(false));
-  }, [navigate]);
+  }, [aplicarDatosAdmin, manejarErrorCargaAdmin]);
 
   useEffect(() => {
-    recargarDatos();
-  }, [recargarDatos]);
+    let cancelado = false;
+
+    obtenerDatosAdmin()
+      .then((datos) => {
+        if (!cancelado) aplicarDatosAdmin(datos);
+      })
+      .catch((err) => {
+        if (!cancelado) manejarErrorCargaAdmin(err);
+      })
+      .finally(() => {
+        if (!cancelado) setCargando(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [aplicarDatosAdmin, manejarErrorCargaAdmin]);
 
   const solicitarConfirmacion = ({
     titulo,

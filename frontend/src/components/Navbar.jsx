@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import '../styles/Navbar.css';
 
 const SECCIONES = ['inicio', 'canchas', 'horarios'];
 
-export const Navbar = ({ onContacto, onLogoDoubleClick }) => {
+export const Navbar = ({ onContacto, onLogoDoubleClick, contactoAbierto = false }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [conSombra, setConSombra] = useState(false);
   const [seccionActiva, setSeccionActiva] = useState('inicio');
@@ -16,11 +17,14 @@ export const Navbar = ({ onContacto, onLogoDoubleClick }) => {
       setConSombra(window.scrollY > 8);
       if (!esInicio) return;
 
-      const posicion = window.scrollY + (document.getElementById('header')?.offsetHeight || 0) + 100;
-      const seccion = [...SECCIONES]
-        .reverse()
-        .find((id) => document.getElementById(id)?.offsetTop <= posicion);
-      if (seccion) setSeccionActiva(seccion);
+      const headerHeight = document.getElementById('header')?.offsetHeight || 0;
+      const activationLine = headerHeight + Math.min(window.innerHeight * 0.55, 360);
+      const seccion = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2
+        ? SECCIONES.at(-1)
+        : [...SECCIONES]
+          .reverse()
+          .find((id) => document.getElementById(id)?.getBoundingClientRect().top <= activationLine);
+      setSeccionActiva(seccion || SECCIONES[0]);
     };
 
     window.addEventListener('scroll', alScroll, { passive: true });
@@ -29,6 +33,21 @@ export const Navbar = ({ onContacto, onLogoDoubleClick }) => {
   }, [esInicio]);
 
   const cerrarMenu = () => setMenuAbierto(false);
+  const contactoActivo = contactoAbierto || location.hash === '#contacto';
+
+  const manejarLogo = (event) => {
+    cerrarMenu();
+    if (!esInicio) {
+      event.preventDefault();
+      navigate('/');
+      return;
+    }
+
+    event.preventDefault();
+    if (location.hash) navigate('/', { replace: true });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const manejarSeccion = (event, id) => {
     cerrarMenu();
     if (!esInicio || id === 'contacto') return;
@@ -48,10 +67,11 @@ export const Navbar = ({ onContacto, onLogoDoubleClick }) => {
     onContacto();
   };
 
+
   const enlaceSeccion = (id, texto) => (
     <Link
       key={id}
-      className={`enlace ${seccionActiva === id && esInicio ? 'activo' : ''}`}
+      className={`enlace ${seccionActiva === id && esInicio && !contactoActivo ? 'activo' : ''}`}
       to={`/#${id}`}
       onClick={(event) => manejarSeccion(event, id)}
     >
@@ -65,7 +85,7 @@ export const Navbar = ({ onContacto, onLogoDoubleClick }) => {
         <Link
           to="/"
           className="marca"
-          onClick={cerrarMenu}
+          onClick={manejarLogo}
           onDoubleClick={onLogoDoubleClick}
           aria-label="CanchaVóley, ir al inicio"
         >
@@ -77,7 +97,11 @@ export const Navbar = ({ onContacto, onLogoDoubleClick }) => {
           {enlaceSeccion('inicio', 'Inicio')}
           {enlaceSeccion('canchas', 'Canchas')}
           {enlaceSeccion('horarios', 'Horarios')}
-          <Link className="enlace enlace-boton" to="/#contacto" onClick={manejarContacto}>
+          <Link
+            className={`enlace enlace-boton ${contactoActivo ? 'activo' : ''}`}
+            to="/#contacto"
+            onClick={manejarContacto}
+          >
             Contacto
           </Link>
           <Link className="btn btn-primario menu-cta" to="/reservar" onClick={cerrarMenu}>

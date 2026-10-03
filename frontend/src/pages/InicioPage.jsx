@@ -136,7 +136,11 @@ export default function InicioPage() {
 
   return (
     <div className="inicio-container">
-      <Navbar onContacto={abrirContacto} onLogoDoubleClick={abrirLoginAdmin} />
+      <Navbar
+        onContacto={abrirContacto}
+        onLogoDoubleClick={abrirLoginAdmin}
+        contactoAbierto={contactoAbierto}
+      />
 
       <main>
         {/* HERO SECTION */}
