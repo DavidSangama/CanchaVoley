@@ -18,21 +18,46 @@ CREATE TEMP TABLE _cv_clientes_prueba (
 
 INSERT INTO _cv_clientes_prueba (orden, dni, nombre, apellido, telefono)
 VALUES
-    (1, '00000001', 'Lucia Fernanda', 'Torres Medina', '900000001'),
-    (2, '00000002', 'Mateo Alejandro', 'Quispe Salazar', '900000002'),
-    (3, '00000003', 'Valentina Isabel', 'Rojas Mendoza', '900000003'),
-    (4, '00000004', 'Joaquin Andres', 'Flores Castillo', '900000004');
+    (1, NULL, 'Lucia Fernanda', 'Torres Medina', '900000001'),
+    (2, NULL, 'Mateo Alejandro', 'Quispe Salazar', '900000002'),
+    (3, NULL, 'Valentina Isabel', 'Rojas Mendoza', '900000003'),
+    (4, NULL, 'Joaquin Andres', 'Flores Castillo', '900000004');
 
 DO $$
+DECLARE
+    perfil record;
+    dni_aleatorio varchar(8);
+    intentos integer;
 BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM renta_cancha.cliente existente
-        JOIN _cv_clientes_prueba prueba USING (dni)
-    ) THEN
-        RAISE EXCEPTION
-            'Uno de los DNI reservados para los perfiles ficticios ya existe; se canceló la carga para evitar duplicados';
-    END IF;
+    FOR perfil IN SELECT orden FROM _cv_clientes_prueba ORDER BY orden LOOP
+        intentos := 0;
+        LOOP
+            dni_aleatorio := lpad(
+                (floor(random() * 90000000)::bigint + 10000000)::text,
+                8,
+                '0');
+            intentos := intentos + 1;
+
+            EXIT WHEN NOT EXISTS (
+                SELECT 1
+                FROM renta_cancha.cliente existente
+                WHERE existente.dni = dni_aleatorio
+            ) AND NOT EXISTS (
+                SELECT 1
+                FROM _cv_clientes_prueba elegido
+                WHERE elegido.dni = dni_aleatorio
+            );
+
+            IF intentos >= 100 THEN
+                RAISE EXCEPTION
+                    'No se pudo generar un DNI único después de 100 intentos; se canceló la carga';
+            END IF;
+        END LOOP;
+
+        UPDATE _cv_clientes_prueba
+        SET dni = dni_aleatorio
+        WHERE orden = perfil.orden;
+    END LOOP;
 END $$;
 
 INSERT INTO renta_cancha.cliente (nombre, apellido, dni, telefono)
