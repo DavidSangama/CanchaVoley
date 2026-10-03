@@ -6,6 +6,7 @@ import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
 import { ClienteService } from '../services/ClienteService';
 import { PagoService } from '../services/PagoService';
+import { guardarTokenGestion } from '../services/gestionReservaSession';
 import '../styles/ReservaPage.css';
 
 const CLAVE_BORRADOR_RESERVA = 'reservation_draft';
@@ -79,7 +80,17 @@ export function ReservaPage() {
   const canchaSeleccionada = seleccionCancha.parametro === canchaParam
     ? seleccionCancha.id
     : canchaParam ? parseInt(canchaParam, 10) : null;
-  const seleccionarCancha = (id) => setSeleccionCancha({ parametro: canchaParam, id });
+  const seleccionarCancha = (id) => {
+    setSeleccionCancha((actual) => ({
+      parametro: canchaParam,
+      id: actual.parametro === canchaParam && actual.id === id ? null : id,
+    }));
+    setSeleccionHorario({ clave: null, id: null, horario: null });
+  };
+  const seleccionarFecha = (fecha) => {
+    setFechaSeleccionada((actual) => (esMismaFecha(actual, fecha) ? null : fecha));
+    setSeleccionHorario({ clave: null, id: null, horario: null });
+  };
 
   const [canchas, setCanchas] = useState([]);
   const [cargandoCanchas, setCargandoCanchas] = useState(true);
@@ -193,11 +204,7 @@ export function ReservaPage() {
           error: null,
         });
         setSeleccionHorario((actual) => {
-          const idGuardado = actual.clave === claveDisponibilidad
-            ? actual.id
-            : borradorInicial?.horarioKey === claveDisponibilidad
-              ? borradorInicial.horarioId
-              : null;
+          const idGuardado = actual.clave === claveDisponibilidad ? actual.id : null;
           const horario = listaHorarios.find((item) => (
             item.idHorario === idGuardado && !ocupados.includes(item.idHorario)
           ));
@@ -314,6 +321,8 @@ export function ReservaPage() {
         setErrorEnvio('El servidor todavía no está listo para generar el enlace privado. La reserva pudo registrarse; no vuelvas a enviarla y contacta al administrador para verificarla.');
         return;
       }
+
+      guardarTokenGestion(nuevaReserva.tokenGestion);
 
       // 3. Registrar el pago
       await PagoService.procesar({
@@ -535,7 +544,7 @@ export function ReservaPage() {
               <>
                 <section className="bloque-seleccion">
                   <h2>Elige la fecha</h2>
-                  <p className="subtexto-bloque">Los días anteriores a hoy no están disponibles.</p>
+                  <p className="subtexto-bloque">Los días anteriores a hoy no están disponibles. Pulsa de nuevo la fecha para quitar la selección.</p>
 
                   <div className="calendario-box">
                     <div className="calendario-header">
@@ -573,7 +582,8 @@ export function ReservaPage() {
                             esMismaFecha(fecha, fechaSeleccionada) ? 'seleccionado' : ''
                           }`}
                           disabled={deshabilitado}
-                          onClick={() => setFechaSeleccionada(fecha)}
+                          aria-pressed={Boolean(esMismaFecha(fecha, fechaSeleccionada))}
+                          onClick={() => seleccionarFecha(fecha)}
                         >
                           {dia}
                         </button>
@@ -584,6 +594,7 @@ export function ReservaPage() {
 
                 <section className="bloque-seleccion">
                   <h2>Elige la cancha</h2>
+                  <p className="subtexto-bloque">Pulsa de nuevo la cancha para quitar la selección.</p>
                   {cargandoCanchas && <p className="estado-carga" role="status">Cargando canchas…</p>}
                   {errorCanchas && <p className="estado-error" role="alert">{errorCanchas}</p>}
                   {!cargandoCanchas && !errorCanchas && canchas.length === 0 && (
@@ -596,6 +607,7 @@ export function ReservaPage() {
                           key={cancha.idCancha}
                           type="button"
                           className={`cancha-opcion ${canchaSeleccionada === cancha.idCancha ? 'seleccionada' : ''}`}
+                          aria-pressed={canchaSeleccionada === cancha.idCancha}
                           onClick={() => seleccionarCancha(cancha.idCancha)}
                         >
                           <span>Cancha</span>
@@ -625,7 +637,7 @@ export function ReservaPage() {
                 <section className="bloque-seleccion">
                   <h2>Elige tu horario</h2>
                   <p className="subtexto-bloque">
-                    Los horarios en gris ya están reservados en la cancha {canchaSeleccionada} el {fechaTexto}.
+                    Los horarios en gris ya están reservados en la cancha {canchaActual?.numeroCancha} el {fechaTexto}. Pulsa de nuevo el horario para quitar la selección.
                   </p>
 
                   <div className="horario-leyenda">
@@ -654,11 +666,10 @@ export function ReservaPage() {
                             type="button"
                             className={`horario-slot ${ocupado ? 'ocupado' : seleccionado ? 'seleccionado' : 'disponible'}`}
                             disabled={ocupado}
-                            onClick={() => setSeleccionHorario({
-                              clave: claveDisponibilidad,
-                              id: h.idHorario,
-                              horario: h,
-                            })}
+                            aria-pressed={seleccionado}
+                            onClick={() => setSeleccionHorario(seleccionado
+                              ? { clave: claveDisponibilidad, id: null, horario: null }
+                              : { clave: claveDisponibilidad, id: h.idHorario, horario: h })}
                           >
                             <strong>{h.hora?.slice(0, 5)}</strong>
                             <span>S/ {Number(h.precio)}</span>

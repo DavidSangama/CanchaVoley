@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  obtenerTokenGestionGuardado,
+  TOKEN_GESTION_UPDATED_EVENT,
+} from '../services/gestionReservaSession';
 import '../styles/Navbar.css';
 
 const SECCIONES = ['inicio', 'canchas', 'horarios'];
@@ -10,7 +14,14 @@ export const Navbar = ({ onContacto, onLogoDoubleClick, contactoAbierto = false 
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [conSombra, setConSombra] = useState(false);
   const [seccionActiva, setSeccionActiva] = useState('inicio');
+  const [tokenGestion, setTokenGestion] = useState(obtenerTokenGestionGuardado);
   const esInicio = location.pathname === '/';
+
+  useEffect(() => {
+    const actualizarToken = () => setTokenGestion(obtenerTokenGestionGuardado());
+    window.addEventListener(TOKEN_GESTION_UPDATED_EVENT, actualizarToken);
+    return () => window.removeEventListener(TOKEN_GESTION_UPDATED_EVENT, actualizarToken);
+  }, []);
 
   useEffect(() => {
     const alScroll = () => {
@@ -104,6 +115,15 @@ export const Navbar = ({ onContacto, onLogoDoubleClick, contactoAbierto = false 
           >
             Contacto
           </Link>
+          {tokenGestion && (
+            <Link
+              className={`enlace ${location.pathname === '/mis-reservas' ? 'activo' : ''}`}
+              to={`/mis-reservas#${tokenGestion}`}
+              onClick={cerrarMenu}
+            >
+              Mis reservas
+            </Link>
+          )}
           <Link className="btn btn-primario menu-cta" to="/reservar" onClick={cerrarMenu}>
             Reservar
           </Link>
