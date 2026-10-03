@@ -18,10 +18,10 @@ CREATE TEMP TABLE _cv_clientes_prueba (
 
 INSERT INTO _cv_clientes_prueba (orden, dni, nombre, apellido, telefono)
 VALUES
-    (1, '00000001', 'Cliente Prueba 1', 'Datos Sinteticos', '000000001'),
-    (2, '00000002', 'Cliente Prueba 2', 'Datos Sinteticos', '000000002'),
-    (3, '00000003', 'Cliente Prueba 3', 'Datos Sinteticos', '000000003'),
-    (4, '00000004', 'Cliente Prueba 4', 'Datos Sinteticos', '000000004');
+    (1, '00000001', 'Lucia Fernanda', 'Torres Medina', '900000001'),
+    (2, '00000002', 'Mateo Alejandro', 'Quispe Salazar', '900000002'),
+    (3, '00000003', 'Valentina Isabel', 'Rojas Mendoza', '900000003'),
+    (4, '00000004', 'Joaquin Andres', 'Flores Castillo', '900000004');
 
 DO $$
 BEGIN
@@ -31,7 +31,7 @@ BEGIN
         JOIN _cv_clientes_prueba prueba USING (dni)
     ) THEN
         RAISE EXCEPTION
-            'Ya existe uno de los DNI sintéticos 00000001-00000004; se canceló la carga para evitar duplicados';
+            'Uno de los DNI reservados para los perfiles ficticios ya existe; se canceló la carga para evitar duplicados';
     END IF;
 END $$;
 
@@ -152,23 +152,27 @@ FROM _cv_clientes_prueba cliente
 UNION ALL
 SELECT 'Reserva',
        reserva.id_reserva::text,
-       'Cliente ' || cliente.id_cliente || ' · Cancha ' || horario.id_cancha
-           || ' · Horario ' || horario.id_horario,
+       'Cliente ' || cliente.nombre || ' ' || cliente.apellido
+           || ' · Cancha ' || cancha.numero_cancha
+           || ' · Horario ' || horario_datos.hora,
        horario.fecha,
        horario.precio,
        NULL::text
 FROM _cv_reservas_prueba reserva
 JOIN _cv_horarios_prueba horario USING (orden)
 JOIN _cv_clientes_prueba cliente USING (id_cliente)
+JOIN renta_cancha.cancha cancha ON cancha.id_cancha = horario.id_cancha
+JOIN renta_cancha.horario horario_datos ON horario_datos.id_horario = horario.id_horario
 UNION ALL
 SELECT 'Pago',
        pago.id_pago::text,
        'Reserva ' || pago.id_reserva,
-       reserva.fecha,
+       reserva_datos.fecha,
        pago.total,
        pago.estado
 FROM renta_cancha.pago pago
 JOIN _cv_reservas_prueba reserva USING (id_reserva)
+JOIN renta_cancha.reserva reserva_datos USING (id_reserva)
 ORDER BY tipo, id;
 
 COMMIT;
