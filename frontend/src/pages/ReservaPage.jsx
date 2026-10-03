@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Navbar } from '../components/Navbar';
+import { CanchaService } from '../services/CanchaService';
 import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
 import { ClienteService } from '../services/ClienteService';
 import { PagoService } from '../services/PagoService';
-import './ReservaPage.css';
+import '../styles/ReservaPage.css';
 
 export function ReservaPage() {
   const [searchParams] = useSearchParams();
@@ -19,21 +21,38 @@ export function ReservaPage() {
   const [mesVisible, setMesVisible] = useState(hoy.getMonth());
   const [anioVisible, setAnioVisible] = useState(hoy.getFullYear());
 
-  const [canchaSeleccionada, setCanchaSeleccionada] = useState(
-    canchaParam ? parseInt(canchaParam, 10) : null
-  );
+  const [seleccionCancha, setSeleccionCancha] = useState(() => ({
+    parametro: canchaParam,
+    id: canchaParam ? parseInt(canchaParam, 10) : null,
+  }));
+  const canchaSeleccionada = seleccionCancha.parametro === canchaParam
+    ? seleccionCancha.id
+    : canchaParam ? parseInt(canchaParam, 10) : null;
+  const seleccionarCancha = (id) => setSeleccionCancha({ parametro: canchaParam, id });
+
+  const [canchas, setCanchas] = useState([]);
+  const [cargandoCanchas, setCargandoCanchas] = useState(true);
+  const [errorCanchas, setErrorCanchas] = useState('');
+  const canchaActual = canchas.find((cancha) => cancha.idCancha === canchaSeleccionada);
 
   useEffect(() => {
-    setCanchaSeleccionada(canchaParam ? parseInt(canchaParam, 10) : null);
-  }, [canchaParam]);
+    let cancelado = false;
+    CanchaService.obtenerTodas()
+      .then((listaCanchas) => {
+        if (!cancelado) setCanchas(listaCanchas);
+      })
+      .catch((error) => {
+        console.error('Error al cargar canchas para reservar:', error);
+        if (!cancelado) setErrorCanchas('No se pudieron cargar las canchas. Intenta de nuevo más tarde.');
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoCanchas(false);
+      });
 
-  const canchas = [
-    { id: 1, nombre: 'Cancha 1' },
-    { id: 2, nombre: 'Cancha 2' },
-    { id: 3, nombre: 'Cancha 3' },
-    { id: 4, nombre: 'Cancha 4' },
-    { id: 5, nombre: 'Cancha 5' },
-  ];
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const NOMBRES_MES = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -80,44 +99,61 @@ export function ReservaPage() {
     ? `${fechaSeleccionada.getFullYear()}-${pad2(fechaSeleccionada.getMonth() + 1)}-${pad2(fechaSeleccionada.getDate())}`
     : null;
 
-  const [horarios, setHorarios] = useState([]);
-  const [horariosOcupados, setHorariosOcupados] = useState([]);
-  const [horarioSeleccionado, setHorarioSeleccionado] = useState(null);
-  const [cargandoHorarios, setCargandoHorarios] = useState(false);
-  const [errorHorarios, setErrorHorarios] = useState(null);
+  const claveDisponibilidad = canchaSeleccionada && fechaISO
+    ? `${canchaSeleccionada}-${fechaISO}`
+    : null;
+  const [datosDisponibilidad, setDatosDisponibilidad] = useState({
+    clave: null,
+    horarios: [],
+    ocupados: [],
+    error: null,
+  });
+  const [seleccionHorario, setSeleccionHorario] = useState({ clave: null, horario: null });
+  const disponibilidadActual = datosDisponibilidad.clave === claveDisponibilidad;
+  const horarios = disponibilidadActual ? datosDisponibilidad.horarios : [];
+  const horariosOcupados = disponibilidadActual ? datosDisponibilidad.ocupados : [];
+  const errorHorarios = disponibilidadActual ? datosDisponibilidad.error : null;
+  const cargandoHorarios = pasoActual === 2 && Boolean(claveDisponibilidad) && !disponibilidadActual;
+  const horarioSeleccionado = seleccionHorario.clave === claveDisponibilidad
+    ? seleccionHorario.horario
+    : null;
 
   useEffect(() => {
-    if (pasoActual !== 2 || !canchaSeleccionada || !fechaISO) return;
+    if (pasoActual !== 2 || !claveDisponibilidad) return;
 
     let cancelado = false;
-    setCargandoHorarios(true);
-    setErrorHorarios(null);
-    setHorarioSeleccionado(null);
-
     Promise.all([
       HorarioService.obtenerTodos(),
       ReservaService.obtenerPorFecha(fechaISO),
     ])
       .then(([listaHorarios, reservasDelDia]) => {
         if (cancelado) return;
-        setHorarios(listaHorarios);
         const ocupados = reservasDelDia
           .filter((r) => r.idCancha === canchaSeleccionada)
           .map((r) => r.idHorario);
-        setHorariosOcupados(ocupados);
+        setDatosDisponibilidad({
+          clave: claveDisponibilidad,
+          horarios: listaHorarios,
+          ocupados,
+          error: null,
+        });
       })
       .catch((err) => {
         console.error('Error al cargar horarios:', err);
-        if (!cancelado) setErrorHorarios('No se pudieron cargar los horarios. Intenta de nuevo.');
-      })
-      .finally(() => {
-        if (!cancelado) setCargandoHorarios(false);
+        if (!cancelado) {
+          setDatosDisponibilidad({
+            clave: claveDisponibilidad,
+            horarios: [],
+            ocupados: [],
+            error: 'No se pudieron cargar los horarios. Intenta de nuevo.',
+          });
+        }
       });
 
     return () => {
       cancelado = true;
     };
-  }, [pasoActual, canchaSeleccionada, fechaISO]);
+  }, [pasoActual, claveDisponibilidad, fechaISO, canchaSeleccionada]);
 
   const fechaTexto = fechaSeleccionada
     ? `${NOMBRES_DIA[fechaSeleccionada.getDay()]} ${fechaSeleccionada.getDate()} de ${NOMBRES_MES[fechaSeleccionada.getMonth()]}`
@@ -206,7 +242,7 @@ export function ReservaPage() {
       setDatosConfirmacion({
         idReserva: nuevaReserva.idReserva,
         tokenGestion: nuevaReserva.tokenGestion,
-        cancha: canchaSeleccionada,
+        cancha: canchaActual?.numeroCancha,
         fecha: fechaLarga,
         horario: horarioSeleccionado.hora?.slice(0, 5),
         total: Number(horarioSeleccionado.precio),
@@ -223,8 +259,8 @@ export function ReservaPage() {
   const hacerOtraReserva = () => {
     setPasoActual(1);
     setFechaSeleccionada(null);
-    setCanchaSeleccionada(null);
-    setHorarioSeleccionado(null);
+    seleccionarCancha(null);
+    setSeleccionHorario({ clave: null, horario: null });
     setDatosCliente({ nombre: '', apellido: '', dni: '', telefono: '' });
     setErroresDatos({});
     setErrorEnvio(null);
@@ -283,21 +319,7 @@ export function ReservaPage() {
   if (reservaConfirmada && datosConfirmacion) {
     return (
       <div className="reserva-container">
-        <header className="header con-sombra" id="header">
-          <div className="container header-in">
-            <Link to="/" className="marca">
-              <span className="logo">V</span>
-              <span className="marca-nombre">CanchaVóley</span>
-            </Link>
-            <nav className="menu" aria-label="Principal">
-              <Link className="enlace" to="/">Inicio</Link>
-              <Link className="enlace" to="/#canchas">Canchas</Link>
-              <Link className="enlace" to="/#horarios">Horarios</Link>
-              <Link className="enlace" to="/">Contacto</Link>
-            </nav>
-            <Link className="btn btn-primario header-cta" to="/reservar">Reservar</Link>
-          </div>
-        </header>
+        <Navbar />
 
         <main className="container reserva-main">
           <div className="confirmacion-card">
@@ -388,25 +410,7 @@ export function ReservaPage() {
 
   return (
     <div className="reserva-container">
-      <header className="header con-sombra" id="header">
-        <div className="container header-in">
-          <Link to="/" className="marca">
-            <span className="logo">V</span>
-            <span className="marca-nombre">CanchaVóley</span>
-          </Link>
-
-          <nav className="menu" aria-label="Principal">
-            <Link className="enlace" to="/">Inicio</Link>
-            <Link className="enlace" to="/#canchas">Canchas</Link>
-            <Link className="enlace" to="/#horarios">Horarios</Link>
-            <Link className="enlace" to="/">Contacto</Link>
-          </nav>
-
-          <Link className="btn btn-primario header-cta" to="/reservar">
-            Reservar
-          </Link>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="container reserva-main">
         <div className="reserva-header">
@@ -495,26 +499,33 @@ export function ReservaPage() {
 
                 <section className="bloque-seleccion">
                   <h2>Elige la cancha</h2>
-                  <div className="canchas-grid-selector">
-                    {canchas.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className={`cancha-opcion ${canchaSeleccionada === c.id ? 'seleccionada' : ''}`}
-                        onClick={() => setCanchaSeleccionada(c.id)}
-                      >
-                        <span>Cancha</span>
-                        <strong>{c.id}</strong>
-                      </button>
-                    ))}
-                  </div>
+                  {cargandoCanchas && <p className="estado-carga" role="status">Cargando canchas…</p>}
+                  {errorCanchas && <p className="estado-error" role="alert">{errorCanchas}</p>}
+                  {!cargandoCanchas && !errorCanchas && canchas.length === 0 && (
+                    <p className="estado-error" role="alert">No hay canchas disponibles para reservar.</p>
+                  )}
+                  {!cargandoCanchas && !errorCanchas && canchas.length > 0 && (
+                    <div className="canchas-grid-selector">
+                      {canchas.map((cancha) => (
+                        <button
+                          key={cancha.idCancha}
+                          type="button"
+                          className={`cancha-opcion ${canchaSeleccionada === cancha.idCancha ? 'seleccionada' : ''}`}
+                          onClick={() => seleccionarCancha(cancha.idCancha)}
+                        >
+                          <span>Cancha</span>
+                          <strong>{cancha.numeroCancha}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
                 <div className="reserva-acciones">
                   <button
                     type="button"
                     className="btn btn-primario btn-continuar"
-                    disabled={!canchaSeleccionada || !fechaSeleccionada}
+                    disabled={!canchaActual || !fechaSeleccionada || cargandoCanchas || Boolean(errorCanchas)}
                     onClick={() => setPasoActual(2)}
                   >
                     Continuar
@@ -558,7 +569,7 @@ export function ReservaPage() {
                             type="button"
                             className={`horario-slot ${ocupado ? 'ocupado' : seleccionado ? 'seleccionado' : 'disponible'}`}
                             disabled={ocupado}
-                            onClick={() => setHorarioSeleccionado(h)}
+                            onClick={() => setSeleccionHorario({ clave: claveDisponibilidad, horario: h })}
                           >
                             <strong>{h.hora?.slice(0, 5)}</strong>
                             <span>S/ {Number(h.precio)}</span>
@@ -690,7 +701,7 @@ export function ReservaPage() {
                     </div>
                     <div className="confirma-fila">
                       <span>Cancha</span>
-                      <strong>Cancha {canchaSeleccionada}</strong>
+                      <strong>Cancha {canchaActual?.numeroCancha}</strong>
                     </div>
                     <div className="confirma-fila">
                       <span>Fecha</span>
@@ -747,7 +758,7 @@ export function ReservaPage() {
 
               <div className="resumen-fila">
                 <span>Cancha</span>
-                <strong>{canchaSeleccionada ? `Cancha ${canchaSeleccionada}` : '—'}</strong>
+                <strong>{canchaActual ? `Cancha ${canchaActual.numeroCancha}` : '—'}</strong>
               </div>
 
               <div className="resumen-fila">

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Navbar } from '../components/Navbar';
+import { CanchaService } from '../services/CanchaService';
+import { HorarioService } from '../services/HorarioService';
 import { iniciarSesionAdmin } from '../services/api';
-import './InicioPage.css';
+import '../styles/InicioPage.css';
 
 const getImageUrl = (name) => {
   return new URL(`../assets/${name}`, import.meta.url).href;
@@ -9,9 +12,11 @@ const getImageUrl = (name) => {
 
 export default function InicioPage() {
   const navigate = useNavigate();
-  const [menuAbierto, setMenuAbierto] = useState(false);
-  const [conSombra, setConSombra] = useState(false);
-  const [seccionActiva, setSeccionActiva] = useState('inicio');
+  const location = useLocation();
+  const [canchas, setCanchas] = useState([]);
+  const [horarios, setHorarios] = useState([]);
+  const [cargandoDatos, setCargandoDatos] = useState(true);
+  const [errorDatos, setErrorDatos] = useState('');
 
   // Estados para el modal de contacto y animación de salida
   const [modalContactoAbierto, setModalContactoAbierto] = useState(false);
@@ -26,122 +31,56 @@ export default function InicioPage() {
   const [mostrarClaveAdmin, setMostrarClaveAdmin] = useState(false);
 
   useEffect(() => {
-    const ids = ['inicio', 'canchas', 'horarios'];
+    let cancelado = false;
 
-    const alScroll = () => {
-      setConSombra(window.scrollY > 8);
+    Promise.all([CanchaService.obtenerTodas(), HorarioService.obtenerTodos()])
+      .then(([listaCanchas, listaHorarios]) => {
+        if (cancelado) return;
+        setCanchas(listaCanchas);
+        setHorarios(listaHorarios);
+      })
+      .catch((error) => {
+        console.error('Error al cargar canchas y horarios:', error);
+        if (!cancelado) setErrorDatos('No se pudieron cargar las canchas y los precios. Intenta de nuevo más tarde.');
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoDatos(false);
+      });
 
-      // Detectar sección activa según el scroll si no hay IntersectionObserver activo
-      const headerH = document.getElementById('header')?.offsetHeight || 70;
-      const scrollPos = window.scrollY + headerH + 100;
-
-      for (let i = ids.length - 1; i >= 0; i--) {
-        const elem = document.getElementById(ids[i]);
-        if (elem && elem.offsetTop <= scrollPos) {
-          setSeccionActiva(ids[i]);
-          break;
-        }
-      }
+    return () => {
+      cancelado = true;
     };
-
-    window.addEventListener('scroll', alScroll, { passive: true });
-    alScroll();
-
-    const secciones = ids
-      .map((id) => document.getElementById(id))
-      .filter(Boolean);
-
-    if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver(
-        (entradas) => {
-          entradas.forEach((entrada) => {
-            if (entrada.isIntersecting) {
-              setSeccionActiva(entrada.target.id);
-            }
-          });
-        },
-        {
-          rootMargin: '-20% 0px -50% 0px',
-          threshold: 0.2
-        }
-      );
-
-      secciones.forEach((s) => observer.observe(s));
-
-      return () => {
-        window.removeEventListener('scroll', alScroll);
-        secciones.forEach((s) => observer.unobserve(s));
-      };
-    }
-
-    return () => window.removeEventListener('scroll', alScroll);
   }, []);
 
   useEffect(() => {
-    const ids = ['inicio', 'canchas', 'horarios'];
+    if (!location.hash) return;
+    if (location.hash === '#contacto') return;
 
-    const alScroll = () => {
-      setConSombra(window.scrollY > 8);
-
-      const headerH = document.getElementById('header')?.offsetHeight || 70;
-      // Punto central visible de la pantalla
-      const centroPantalla = window.scrollY + headerH + (window.innerHeight - headerH) / 3;
-
-      let seccionActual = 'inicio';
-
-      ids.forEach((id) => {
-        const elem = document.getElementById(id);
-        if (elem) {
-          const top = elem.offsetTop;
-          const height = elem.offsetHeight;
-
-          // Si el centro de la pantalla está dentro del rango vertical de esta sección
-          if (centroPantalla >= top && centroPantalla < top + height) {
-            seccionActual = id;
-          }
-        }
-      });
-
-      // Caso especial si el usuario llega al final absoluto de la página
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 20) {
-        seccionActual = ids[ids.length - 1];
-      }
-
-      setSeccionActiva(seccionActual);
-    };
-
-    window.addEventListener('scroll', alScroll, { passive: true });
-    alScroll();
-
-    return () => window.removeEventListener('scroll', alScroll);
-  }, []);
+    const id = location.hash.slice(1);
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash]);
 
   const irASeccion = (e, id) => {
     e.preventDefault();
-    setMenuAbierto(false);
 
     if (id === 'inicio') {
-      setSeccionActiva('inicio');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     const elem = document.getElementById(id);
     if (elem) {
-      const headerH = document.getElementById('header')?.offsetHeight || 70;
       const elemPosition = elem.getBoundingClientRect().top + window.pageYOffset;
-      const offsetPosition = elemPosition - headerH + 2;
-
       window.scrollTo({
-        top: offsetPosition,
+        top: elemPosition - (document.getElementById('header')?.offsetHeight || 0),
         behavior: 'smooth'
       });
     }
   };
 
-  const abrirContacto = (e) => {
-    e.preventDefault();
-    setMenuAbierto(false);
+  const abrirContacto = () => {
     setCerrandoModal(false);
     setModalContactoAbierto(true);
   };
@@ -151,6 +90,7 @@ export default function InicioPage() {
     setTimeout(() => {
       setModalContactoAbierto(false);
       setCerrandoModal(false);
+      if (location.hash === '#contacto') navigate('/', { replace: true });
     }, 200);
   };
 
@@ -188,90 +128,15 @@ export default function InicioPage() {
     }
   };
 
-  const canchas = [
-    { id: 1, nombre: 'Cancha 1', precio: 'Desde S/ 20 por hora', img: getImageUrl('Cancha 1.png') },
-    { id: 2, nombre: 'Cancha 2', precio: 'Desde S/ 20 por hora', img: getImageUrl('Cancha 2.png') },
-    { id: 3, nombre: 'Cancha 3', precio: 'Desde S/ 20 por hora', img: getImageUrl('Cancha 3.png') },
-    { id: 4, nombre: 'Cancha 4', precio: 'Desde S/ 20 por hora', img: getImageUrl('Cancha 4.png') },
-    { id: 5, nombre: 'Cancha 5', precio: 'Desde S/ 20 por hora', img: getImageUrl('Cancha 5.png') },
-  ];
-
-  const horarios = [
-    { hora: '08:00', precio: 'S/ 20' },
-    { hora: '09:00', precio: 'S/ 20' },
-    { hora: '10:00', precio: 'S/ 25' },
-    { hora: '11:00', precio: 'S/ 25' },
-    { hora: '12:00', precio: 'S/ 30' },
-    { hora: '13:00', precio: 'S/ 30' },
-    { hora: '14:00', precio: 'S/ 35' },
-    { hora: '15:00', precio: 'S/ 35' },
-    { hora: '16:00', precio: 'S/ 40' },
-    { hora: '17:00', precio: 'S/ 40' },
-    { hora: '18:00', precio: 'S/ 50' },
-  ];
+  const horariosOrdenados = [...horarios].sort((a, b) => a.hora.localeCompare(b.hora));
+  const precioMinimo = horarios.length
+    ? Math.min(...horarios.map((horario) => Number(horario.precio)))
+    : null;
+  const contactoAbierto = modalContactoAbierto || location.hash === '#contacto';
 
   return (
     <div className="inicio-container">
-      {/* HEADER / NAVBAR */}
-      <header className={`header ${conSombra ? 'con-sombra' : ''}`} id="header">
-        <div className="container header-in">
-          <a href="#inicio" className="marca" onClick={(e) => irASeccion(e, 'inicio')} onDoubleClick={abrirLoginAdmin} aria-label="CanchaVóley, ir al inicio">
-            <span className="logo">V</span>
-            <span className="marca-nombre">CanchaVóley</span>
-          </a>
-
-          <nav className={`menu ${menuAbierto ? 'abierto' : ''}`} id="menu" aria-label="Principal">
-            <a
-              className={`enlace ${seccionActiva === 'inicio' && !modalContactoAbierto ? 'activo' : ''}`}
-              href="#inicio"
-              onClick={(e) => irASeccion(e, 'inicio')}
-            >
-              Inicio
-            </a>
-            <a
-              className={`enlace ${seccionActiva === 'canchas' && !modalContactoAbierto ? 'activo' : ''}`}
-              href="#canchas"
-              onClick={(e) => irASeccion(e, 'canchas')}
-            >
-              Canchas
-            </a>
-            <a
-              className={`enlace ${seccionActiva === 'horarios' && !modalContactoAbierto ? 'activo' : ''}`}
-              href="#horarios"
-              onClick={(e) => irASeccion(e, 'horarios')}
-            >
-              Horarios
-            </a>
-            <button
-              type="button"
-              className={`enlace enlace-boton ${modalContactoAbierto ? 'activo' : ''}`}
-              onClick={abrirContacto}
-            >
-              Contacto
-            </button>
-
-            <Link className="btn btn-primario menu-cta" to="/reservar" onClick={() => setMenuAbierto(false)}>
-              Reservar
-            </Link>
-          </nav>
-
-          <Link className="btn btn-primario header-cta" to="/reservar">
-            Reservar
-          </Link>
-
-          <button
-            className={`hamburguesa ${menuAbierto ? 'abierta' : ''}`}
-            type="button"
-            aria-label={menuAbierto ? 'Cerrar menú' : 'Abrir menú'}
-            aria-expanded={menuAbierto}
-            onClick={() => setMenuAbierto(!menuAbierto)}
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-        </div>
-      </header>
+      <Navbar onContacto={abrirContacto} onLogoDoubleClick={abrirLoginAdmin} />
 
       <main>
         {/* HERO SECTION */}
@@ -295,15 +160,19 @@ export default function InicioPage() {
 
               <div className="datos">
                 <div className="dato">
-                  <b>5</b>
+                  <b>{cargandoDatos ? '…' : canchas.length}</b>
                   <span>canchas</span>
                 </div>
                 <div className="dato">
-                  <b>08:00 – 18:00</b>
+                  <b>
+                    {cargandoDatos || horariosOrdenados.length === 0
+                      ? '—'
+                      : `${horariosOrdenados[0].hora.slice(0, 5)} – ${horariosOrdenados.at(-1).hora.slice(0, 5)}`}
+                  </b>
                   <span>horarios disponibles</span>
                 </div>
                 <div className="dato">
-                  <b>Desde S/ 20</b>
+                  <b>{precioMinimo === null ? '—' : `Desde S/ ${precioMinimo}`}</b>
                   <span>por hora</span>
                 </div>
               </div>
@@ -323,22 +192,33 @@ export default function InicioPage() {
               <p>Desliza para ver todas y elige la tuya.</p>
             </div>
 
-            <div className="carrusel" tabIndex="0" aria-label="Lista de canchas">
-              {canchas.map((cancha) => (
-                <article className="cancha" key={cancha.id}>
-                  <div className="cancha-foto">
-                    <img src={cancha.img} alt={cancha.nombre} loading="lazy" />
-                  </div>
-                  <div className="cancha-detalle">
-                    <h3>{cancha.nombre}</h3>
-                    <p>{cancha.precio}</p>
-                    <Link className="btn btn-secundario" to={`/reservar?cancha=${cancha.id}`}>
-                      Reservar
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
+            {cargandoDatos && <p role="status">Cargando canchas…</p>}
+            {errorDatos && <p className="estado-error" role="alert">{errorDatos}</p>}
+            {!cargandoDatos && !errorDatos && (
+              canchas.length ? (
+                <div className="carrusel" tabIndex="0" aria-label="Lista de canchas">
+                  {canchas.map((cancha) => (
+                    <article className="cancha" key={cancha.idCancha}>
+                      <div className="cancha-foto">
+                        <img
+                          src={getImageUrl(`Cancha ${cancha.numeroCancha}.png`)}
+                          alt={`Cancha ${cancha.numeroCancha}`}
+                          loading="lazy"
+                          onError={(event) => { event.currentTarget.src = getImageUrl('hero-voley.jpg'); }}
+                        />
+                      </div>
+                      <div className="cancha-detalle">
+                        <h3>Cancha {cancha.numeroCancha}</h3>
+                        <p>{precioMinimo === null ? 'Sin horarios disponibles' : `Desde S/ ${precioMinimo} por hora`}</p>
+                        <Link className="btn btn-secundario" to={`/reservar?cancha=${cancha.idCancha}`}>
+                          Reservar
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : <p>No hay canchas registradas por el momento.</p>
+            )}
           </div>
         </section>
 
@@ -351,13 +231,18 @@ export default function InicioPage() {
             </div>
 
             <ul className="chips">
-              {horarios.map((item, idx) => (
-                <li className="chip" key={idx}>
-                  <b>{item.hora}</b>
-                  <span>{item.precio}</span>
+              {cargandoDatos && <li role="status">Cargando horarios…</li>}
+              {!cargandoDatos && !errorDatos && horariosOrdenados.map((horario) => (
+                <li className="chip" key={horario.idHorario}>
+                  <b>{horario.hora.slice(0, 5)}</b>
+                  <span>S/ {horario.precio}</span>
                 </li>
               ))}
             </ul>
+            {errorDatos && <p className="estado-error" role="alert">{errorDatos}</p>}
+            {!cargandoDatos && !errorDatos && horariosOrdenados.length === 0 && (
+              <p>No hay horarios registrados por el momento.</p>
+            )}
           </div>
         </section>
       </main>
@@ -371,7 +256,7 @@ export default function InicioPage() {
       </footer>
 
       {/* MODAL CONTACTO */}
-      {modalContactoAbierto && (
+      {contactoAbierto && (
         <div
           className={`modal-overlay ${cerrandoModal ? 'salida' : ''}`}
           onClick={cerrarContacto}
@@ -392,42 +277,8 @@ export default function InicioPage() {
             <span className="etiqueta">Atención al cliente</span>
             <h2>Contacto y Soporte</h2>
             <p className="modal-sub">
-              ¿Tienes dudas con tu reserva o necesitas apoyo especial? Contáctanos directamente.
+              Para consultar, reprogramar o cancelar una solicitud, usa el enlace privado que recibiste al reservar.
             </p>
-
-            <div className="contacto-lista">
-              <div className="contacto-item">
-                <div className="contacto-icono">📞</div>
-                <div>
-                  <strong>Teléfono / WhatsApp</strong>
-                  <p>+51 987 654 321</p>
-                </div>
-              </div>
-
-              <div className="contacto-item">
-                <div className="contacto-icono">✉️</div>
-                <div>
-                  <strong>Correo electrónico</strong>
-                  <p>soporte@canchavoley.pe</p>
-                </div>
-              </div>
-
-              <div className="contacto-item">
-                <div className="contacto-icono">⏰</div>
-                <div>
-                  <strong>Horario de atención</strong>
-                  <p>Lunes a Domingo: 08:00 am - 08:00 pm</p>
-                </div>
-              </div>
-
-              <div className="contacto-item">
-                <div className="contacto-icono">📍</div>
-                <div>
-                  <strong>Ubicación</strong>
-                  <p>Av. Principal 123, Lima - Perú</p>
-                </div>
-              </div>
-            </div>
 
             <button
               className="btn btn-primario modal-btn"

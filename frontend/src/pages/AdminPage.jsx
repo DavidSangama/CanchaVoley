@@ -7,7 +7,7 @@ import { PagoService } from '../services/PagoService';
 import { HorarioService } from '../services/HorarioService';
 import { ADMIN_AUTHORIZATION_KEY } from '../services/api';
 import { SelectEstilizado } from '../components/SelectEstilizado';
-import './AdminPage.css';
+import '../styles/AdminPage.css';
 
 const SECCIONES = [
   { id: 'dashboard', nombre: 'Dashboard' },

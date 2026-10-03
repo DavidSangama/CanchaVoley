@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import './SelectEstilizado.css';
+import '../styles/SelectEstilizado.css';
 
 export function SelectEstilizado({
   ariaLabel,
