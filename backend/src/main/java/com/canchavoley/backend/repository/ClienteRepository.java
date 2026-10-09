@@ -12,6 +12,8 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     // Buscar cliente por DNI
     Optional<Cliente> findByDni(String dni);
 
+    Optional<Cliente> findByCorreoIgnoreCase(String correo);
+
     // Verificar si existe cliente por DNI
     boolean existsByDni(String dni);
 

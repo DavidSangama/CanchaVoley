@@ -6,7 +6,12 @@ import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaDisponibilidadResponse;
 import com.canchavoley.backend.dto.ReservaGestionResponse;
 import com.canchavoley.backend.dto.ReprogramarReservaRequest;
+import com.canchavoley.backend.dto.RecuperacionCorreoResponse;
+import com.canchavoley.backend.dto.SolicitudRecuperacionCorreoRequest;
+import com.canchavoley.backend.dto.TokenGestionResponse;
 import com.canchavoley.backend.dto.VaciadoDatosResponse;
+import com.canchavoley.backend.dto.VerificarRecuperacionCorreoRequest;
+import com.canchavoley.backend.service.CorreoRecuperacionService;
 import com.canchavoley.backend.service.ReservaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -23,6 +28,9 @@ public class ReservaController {
 
     @Autowired
     private ReservaService reservaService;
+
+    @Autowired
+    private CorreoRecuperacionService correoRecuperacionService;
 
     // ==========================================
     // 5 ENDPOINTS GET
@@ -74,6 +82,20 @@ public class ReservaController {
     @PostMapping
     public ResponseEntity<ReservaCreadaResponse> crearReserva(@RequestBody Reserva reserva) {
         return new ResponseEntity<>(reservaService.crearConTokenCancelacion(reserva), HttpStatus.CREATED);
+    }
+
+    @PostMapping("/recuperacion-correo")
+    public ResponseEntity<RecuperacionCorreoResponse> solicitarCodigoRecuperacionCorreo(
+            @RequestBody SolicitudRecuperacionCorreoRequest solicitud) {
+        return ResponseEntity.accepted().body(correoRecuperacionService.solicitarCodigo(solicitud.correo()));
+    }
+
+    @PostMapping("/recuperacion-correo/verificar")
+    public ResponseEntity<TokenGestionResponse> verificarCodigoRecuperacionCorreo(
+            @RequestBody VerificarRecuperacionCorreoRequest solicitud) {
+        return ResponseEntity.ok(correoRecuperacionService.verificarCodigo(
+                solicitud.correo(),
+                solicitud.codigo()));
     }
 
     @PostMapping("/{id}/cancelar")

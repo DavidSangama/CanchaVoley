@@ -11,4 +11,6 @@ public interface TokenGestionClienteRepository extends JpaRepository<TokenGestio
 
     Optional<TokenGestionCliente> findByTokenHash(String tokenHash);
 
+    void deleteAllByClienteIdCliente(Long idCliente);
+
 }

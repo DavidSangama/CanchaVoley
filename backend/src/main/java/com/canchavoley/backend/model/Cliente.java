@@ -23,6 +23,9 @@ public class Cliente {
     @Column(name = "dni", nullable = false, unique = true, length = 8)
     private String dni;
 
+    @Column(name = "correo", length = 254)
+    private String correo;
+
     public Cliente() {
     }
 
@@ -72,5 +75,13 @@ public class Cliente {
 
     public void setDni(String dni) {
         this.dni = dni;
+    }
+
+    public String getCorreo() {
+        return correo;
+    }
+
+    public void setCorreo(String correo) {
+        this.correo = correo;
     }
 }

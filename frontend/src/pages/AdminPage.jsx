@@ -384,7 +384,9 @@ export function AdminPage() {
   const [modalClienteAbierto, setModalClienteAbierto] = useState(false);
   const [cerrandoModalCliente, setCerrandoModalCliente] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
-  const [formCliente, setFormCliente] = useState({ nombre: '', apellido: '', dni: '', telefono: '' });
+  const [formCliente, setFormCliente] = useState({
+    nombre: '', apellido: '', dni: '', telefono: '', correo: '',
+  });
   const [guardandoCliente, setGuardandoCliente] = useState(false);
   const [errorCliente, setErrorCliente] = useState('');
 
@@ -399,7 +401,7 @@ export function AdminPage() {
     .sort((a, b) => a.idCliente - b.idCliente);
 
   const abrirNuevoCliente = () => {
-    setFormCliente({ nombre: '', apellido: '', dni: '', telefono: '' });
+    setFormCliente({ nombre: '', apellido: '', dni: '', telefono: '', correo: '' });
     setClienteEditando(null);
     setErrorCliente('');
     setCerrandoModalCliente(false);
@@ -407,7 +409,13 @@ export function AdminPage() {
   };
 
   const abrirEditarCliente = (c) => {
-    setFormCliente({ nombre: c.nombre, apellido: c.apellido, dni: c.dni, telefono: c.telefono });
+    setFormCliente({
+      nombre: c.nombre,
+      apellido: c.apellido,
+      dni: c.dni,
+      telefono: c.telefono,
+      correo: c.correo || '',
+    });
     setClienteEditando(c);
     setErrorCliente('');
     setCerrandoModalCliente(false);
@@ -436,6 +444,10 @@ export function AdminPage() {
       setErrorCliente('El teléfono debe tener 9 dígitos.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formCliente.correo.trim())) {
+      setErrorCliente('Ingresa un correo electrónico válido.');
+      return;
+    }
 
     setGuardandoCliente(true);
     setErrorCliente('');
@@ -445,6 +457,7 @@ export function AdminPage() {
       apellido: formCliente.apellido.trim(),
       dni: formCliente.dni.trim(),
       telefono: formCliente.telefono.trim(),
+      correo: formCliente.correo.trim().toLowerCase(),
     };
 
     const promesa = clienteEditando
@@ -1072,6 +1085,7 @@ export function AdminPage() {
                         <th>Apellido</th>
                         <th>DNI</th>
                         <th>Teléfono</th>
+                        <th>Correo</th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
@@ -1083,6 +1097,7 @@ export function AdminPage() {
                           <td>{c.apellido}</td>
                           <td>{c.dni}</td>
                           <td>{c.telefono}</td>
+                          <td>{c.correo || 'Sin correo'}</td>
                           <td>
                             <button type="button" className="admin-link-editar" onClick={() => abrirEditarCliente(c)}>
                               Editar
@@ -1525,6 +1540,18 @@ export function AdminPage() {
                   className="campo-input"
                   value={formCliente.telefono}
                   onChange={(e) => setFormCliente((prev) => ({ ...prev, telefono: e.target.value.replace(/\D/g, '') }))}
+                />
+              </div>
+
+              <div className="campo-grupo">
+                <label className="campo-label">Correo electrónico</label>
+                <input
+                  type="email"
+                  maxLength={254}
+                  autoComplete="email"
+                  className="campo-input"
+                  value={formCliente.correo}
+                  onChange={(e) => setFormCliente((prev) => ({ ...prev, correo: e.target.value }))}
                 />
               </div>
 

@@ -29,6 +29,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/reservas/*/gestion").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reservas/gestion/cliente").permitAll()
                         .requestMatchers(HttpMethod.PATCH, "/api/reservas/*/gestion").permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/reservas/recuperacion-correo",
+                                "/api/reservas/recuperacion-correo/verificar").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/canchas/**",
                                 "/api/horarios/**",

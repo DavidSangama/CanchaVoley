@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Footer } from '../components/Footer';
 import { Navbar } from '../components/Navbar';
 import { SelectEstilizado } from '../components/SelectEstilizado';
@@ -19,8 +19,15 @@ const obtenerFechaLocal = () => {
 };
 
 export function GestionReservaPage() {
-  const tokenGestion = window.location.hash.slice(1);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tokenGestion = location.hash.slice(1);
   const [reservas, setReservas] = useState([]);
+  const [correoRecuperacion, setCorreoRecuperacion] = useState('');
+  const [codigoRecuperacion, setCodigoRecuperacion] = useState('');
+  const [codigoEnviado, setCodigoEnviado] = useState(false);
+  const [solicitandoCodigo, setSolicitandoCodigo] = useState(false);
+  const [verificandoCodigo, setVerificandoCodigo] = useState(false);
   const [reservaSeleccionada, setReservaSeleccionada] = useState(null);
   const [fechaSeleccionada, setFechaSeleccionada] = useState('');
   const [idHorarioSeleccionado, setIdHorarioSeleccionado] = useState('');
@@ -31,9 +38,64 @@ export function GestionReservaPage() {
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [error, setError] = useState(() => (
-    tokenGestion ? '' : 'Este enlace no contiene la clave privada. Usa el enlace completo que guardaste al reservar.'
+    ''
   ));
   const [mensaje, setMensaje] = useState('');
+
+  const solicitarCodigoCorreo = async (event) => {
+    event.preventDefault();
+    const correo = correoRecuperacion.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) || correo.length > 254) {
+      setError('Ingresa el correo electrónico asociado a tu cuenta.');
+      return;
+    }
+
+    setSolicitandoCodigo(true);
+    setError('');
+    setMensaje('');
+    try {
+      const respuesta = await ReservaService.solicitarCodigoRecuperacionCorreo(correo);
+      setCorreoRecuperacion(correo);
+      setCodigoEnviado(true);
+      setMensaje(respuesta.mensaje);
+    } catch (err) {
+      console.error('No se pudo solicitar el código de recuperación por correo:', err);
+      setError(err.status === 503
+        ? 'La recuperación por correo todavía no está configurada. Contacta al administrador.'
+        : 'No se pudo solicitar el código. Intenta más tarde.');
+    } finally {
+      setSolicitandoCodigo(false);
+    }
+  };
+
+  const verificarCodigoCorreo = async (event) => {
+    event.preventDefault();
+    const codigo = codigoRecuperacion.trim();
+    if (!/^\d{6}$/.test(codigo)) {
+      setError('Ingresa el código de seis dígitos que recibiste por correo.');
+      return;
+    }
+
+    setVerificandoCodigo(true);
+    setError('');
+    try {
+      const respuesta = await ReservaService.verificarCodigoRecuperacionCorreo(
+        correoRecuperacion,
+        codigo
+      );
+      if (typeof respuesta?.tokenGestion !== 'string' || !respuesta.tokenGestion) {
+        throw new Error('La verificación no devolvió el acceso privado.');
+      }
+      navigate(`/mis-reservas#${respuesta.tokenGestion}`);
+    } catch (err) {
+      console.error('No se pudo verificar el código de recuperación por correo:', err);
+      setError(err.status === 401
+        ? 'El código es incorrecto o venció. Solicita uno nuevo.'
+        : 'No se pudo verificar el código. Intenta más tarde.');
+    } finally {
+      setVerificandoCodigo(false);
+    }
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -179,10 +241,94 @@ export function GestionReservaPage() {
         <section className="rounded-2xl bg-white p-5 sm:p-10 shadow-sm border border-slate-100">
           {cargando ? (
             <p className="text-center text-slate-600" role="status">Cargando tus reservas…</p>
+          ) : !tokenGestion ? (
+            <div className="mx-auto max-w-xl py-4 text-center">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">Acceso privado</p>
+              <h1 className="mb-3 text-3xl font-extrabold text-slate-900">Recuperar mis reservas</h1>
+              {!codigoEnviado ? (
+                <form className="space-y-4 text-left" onSubmit={solicitarCodigoCorreo}>
+                  <p className="text-slate-600">
+                    Ingresa el correo guardado en tu cuenta. Si corresponde a un cliente registrado, enviaremos un código de un solo uso.
+                  </p>
+                  <label className="block text-sm font-semibold text-slate-700" htmlFor="correo-recuperacion">
+                    Correo electrónico
+                  </label>
+                  <input
+                    id="correo-recuperacion"
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    type="email"
+                    autoComplete="email"
+                    maxLength={254}
+                    value={correoRecuperacion}
+                    onChange={(event) => setCorreoRecuperacion(event.target.value)}
+                    placeholder="tucorreo@gmail.com"
+                    required
+                  />
+                  <button
+                    className="w-full rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                    type="submit"
+                    disabled={solicitandoCodigo}
+                  >
+                    {solicitandoCodigo ? 'Solicitando código…' : 'Enviar código al correo'}
+                  </button>
+                </form>
+              ) : (
+                <form className="space-y-4 text-left" onSubmit={verificarCodigoCorreo}>
+                  <p className="text-sm text-slate-600" role="status">
+                    {mensaje} Revisa también la carpeta de spam. El código vence en 10 minutos.
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Puedes solicitar hasta 3 códigos cada 15 minutos; hay un máximo de 5 intentos por código.
+                  </p>
+                  <label className="block text-sm font-semibold text-slate-700" htmlFor="codigo-recuperacion-correo">
+                    Código de seis dígitos
+                  </label>
+                  <input
+                    id="codigo-recuperacion-correo"
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={codigoRecuperacion}
+                    onChange={(event) => setCodigoRecuperacion(event.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    required
+                  />
+                  <button
+                    className="w-full rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                    type="submit"
+                    disabled={verificandoCodigo}
+                  >
+                    {verificandoCodigo ? 'Verificando…' : 'Verificar y abrir mis reservas'}
+                  </button>
+                  <button
+                    className="w-full font-semibold text-blue-700 hover:underline"
+                    type="button"
+                    onClick={() => {
+                      setCodigoEnviado(false);
+                      setCodigoRecuperacion('');
+                      setMensaje('');
+                      setError('');
+                    }}
+                  >
+                    Cambiar correo o solicitar otro código
+                  </button>
+                </form>
+              )}
+              {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
+              <p className="mt-6 text-sm text-slate-500">
+                Por seguridad, no mostramos reservas usando solo el DNI. Si tu ficha aún no tiene correo, solicita al administrador que lo agregue.
+              </p>
+              <Link to="/" className="mt-5 inline-block text-blue-700 font-semibold hover:underline">Volver al inicio</Link>
+            </div>
           ) : error && reservas.length === 0 ? (
             <div className="text-center">
               <h1 className="text-2xl font-bold text-slate-900 mb-3">No pudimos abrir este enlace</h1>
               <p className="text-red-700 mb-6" role="alert">{error}</p>
+              <Link to="/mis-reservas" className="mr-4 text-blue-700 font-semibold hover:underline">
+                Recuperar acceso con mi correo
+              </Link>
               <Link to="/" className="text-blue-700 font-semibold hover:underline">Volver al inicio</Link>
             </div>
           ) : (

@@ -3,8 +3,11 @@ package com.canchavoley.backend.controller;
 import com.canchavoley.backend.config.SecurityConfig;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaGestionResponse;
+import com.canchavoley.backend.dto.RecuperacionCorreoResponse;
+import com.canchavoley.backend.dto.TokenGestionResponse;
 import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.service.ReservaService;
+import com.canchavoley.backend.service.CorreoRecuperacionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -37,6 +40,9 @@ class ReservaControllerTest {
     @MockitoBean
     private ReservaService reservaService;
 
+    @MockitoBean
+    private CorreoRecuperacionService correoRecuperacionService;
+
     @Test
     void creatingReservationReturnsThePrivateManagementToken() throws Exception {
         when(reservaService.crearConTokenCancelacion(any()))
@@ -68,5 +74,31 @@ class ReservaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].idReserva").value(42))
                 .andExpect(jsonPath("$[0].estadoPago").value("PENDIENTE_VERIFICACION"));
+    }
+
+    @Test
+    void requestsRecoveryCodeWithoutRevealingWhetherEmailIsRegistered() throws Exception {
+        when(correoRecuperacionService.solicitarCodigo("cliente@example.com"))
+                .thenReturn(new RecuperacionCorreoResponse(
+                        "Si el correo corresponde a una cuenta, recibirás un código para recuperar tu acceso."));
+
+        mockMvc.perform(post("/api/reservas/recuperacion-correo")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"cliente@example.com\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.mensaje")
+                        .value("Si el correo corresponde a una cuenta, recibirás un código para recuperar tu acceso."));
+    }
+
+    @Test
+    void verifiesRecoveryCodeWithoutAuthentication() throws Exception {
+        when(correoRecuperacionService.verificarCodigo("cliente@example.com", "123456"))
+                .thenReturn(new TokenGestionResponse("private-management-token"));
+
+        mockMvc.perform(post("/api/reservas/recuperacion-correo/verificar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"correo\":\"cliente@example.com\",\"codigo\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenGestion").value("private-management-token"));
     }
 }

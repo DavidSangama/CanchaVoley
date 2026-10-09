@@ -7,10 +7,11 @@ import { ReservaService } from '../services/ReservaService';
 import { ClienteService } from '../services/ClienteService';
 import { PagoService } from '../services/PagoService';
 import { guardarTokenGestion } from '../services/gestionReservaSession';
+import { esHorarioPasado } from '../utils/horarios';
 import '../styles/ReservaPage.css';
 
 const CLAVE_BORRADOR_RESERVA = 'reservation_draft';
-const DATOS_CLIENTE_VACIOS = { nombre: '', apellido: '', dni: '', telefono: '' };
+const DATOS_CLIENTE_VACIOS = { nombre: '', apellido: '', dni: '', telefono: '', correo: '' };
 
 const eliminarBorradorReserva = () => {
   try {
@@ -51,6 +52,7 @@ const cargarBorradorReserva = () => {
         apellido: typeof datos.apellido === 'string' ? datos.apellido : '',
         dni: typeof datos.dni === 'string' ? datos.dni : '',
         telefono: typeof datos.telefono === 'string' ? datos.telefono : '',
+        correo: typeof datos.correo === 'string' ? datos.correo : '',
       },
     };
   } catch (error) {
@@ -60,6 +62,7 @@ const cargarBorradorReserva = () => {
 };
 
 export function ReservaPage() {
+  const [ahora, setAhora] = useState(() => new Date());
   const [searchParams] = useSearchParams();
   const canchaParam = searchParams.get('cancha');
   const [borradorInicial] = useState(cargarBorradorReserva);
@@ -96,6 +99,11 @@ export function ReservaPage() {
   const [cargandoCanchas, setCargandoCanchas] = useState(true);
   const [errorCanchas, setErrorCanchas] = useState('');
   const canchaActual = canchas.find((cancha) => cancha.idCancha === canchaSeleccionada);
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => setAhora(new Date()), 15_000);
+    return () => window.clearInterval(intervalo);
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -181,6 +189,7 @@ export function ReservaPage() {
   const errorHorarios = disponibilidadActual ? datosDisponibilidad.error : null;
   const cargandoHorarios = pasoActual === 2 && Boolean(claveDisponibilidad) && !disponibilidadActual;
   const horarioSeleccionado = seleccionHorario.clave === claveDisponibilidad
+    && !esHorarioPasado(fechaISO, seleccionHorario.horario?.hora, ahora)
     ? seleccionHorario.horario
     : null;
 
@@ -206,7 +215,9 @@ export function ReservaPage() {
         setSeleccionHorario((actual) => {
           const idGuardado = actual.clave === claveDisponibilidad ? actual.id : null;
           const horario = listaHorarios.find((item) => (
-            item.idHorario === idGuardado && !ocupados.includes(item.idHorario)
+            item.idHorario === idGuardado
+            && !ocupados.includes(item.idHorario)
+            && !esHorarioPasado(fechaISO, item.hora)
           ));
           return {
             clave: claveDisponibilidad,
@@ -298,12 +309,25 @@ export function ReservaPage() {
       try {
         const clienteExistente = await ClienteService.buscarPorDni(datosCliente.dni.trim());
         idClienteFinal = clienteExistente.idCliente;
-      } catch {
+      } catch (error) {
+        if (error.status !== 404) throw error;
+        if (
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datosCliente.correo.trim())
+          || datosCliente.correo.trim().length > 254
+        ) {
+          setErroresDatos((actuales) => ({
+            ...actuales,
+            correo: 'Ingresa un correo válido para registrar tu cuenta y recuperar tus reservas.',
+          }));
+          setPasoActual(3);
+          return;
+        }
         const nuevoCliente = await ClienteService.registrar({
           nombre: datosCliente.nombre.trim(),
           apellido: datosCliente.apellido.trim(),
           dni: datosCliente.dni.trim(),
           telefono: datosCliente.telefono.trim(),
+          correo: datosCliente.correo.trim().toLowerCase(),
         });
         idClienteFinal = nuevoCliente.idCliente;
       }
@@ -637,7 +661,7 @@ export function ReservaPage() {
                 <section className="bloque-seleccion">
                   <h2>Elige tu horario</h2>
                   <p className="subtexto-bloque">
-                    Los horarios en gris ya están reservados en la cancha {canchaActual?.numeroCancha} el {fechaTexto}. Pulsa de nuevo el horario para quitar la selección.
+                    Los horarios en gris ya están reservados o ya empezaron en la cancha {canchaActual?.numeroCancha} el {fechaTexto}.
                   </p>
 
                   <div className="horario-leyenda">
@@ -645,7 +669,7 @@ export function ReservaPage() {
                       <span className="leyenda-punto disponible"></span> Disponible
                     </span>
                     <span className="leyenda-item">
-                      <span className="leyenda-punto ocupado"></span> Ocupado
+                      <span className="leyenda-punto ocupado"></span> Ocupado o ya pasó
                     </span>
                     <span className="leyenda-item">
                       <span className="leyenda-punto seleccionado"></span> Seleccionado
@@ -658,7 +682,8 @@ export function ReservaPage() {
                   {!cargandoHorarios && !errorHorarios && (
                     <div className="horarios-grid-selector">
                       {horarios.map((h) => {
-                        const ocupado = horariosOcupados.includes(h.idHorario);
+                        const ocupado = horariosOcupados.includes(h.idHorario)
+                          || esHorarioPasado(fechaISO, h.hora, ahora);
                         const seleccionado = horarioSeleccionado?.idHorario === h.idHorario;
                         return (
                           <button
@@ -759,7 +784,29 @@ export function ReservaPage() {
                       />
                       {erroresDatos.telefono && <span className="campo-ayuda-error">{erroresDatos.telefono}</span>}
                     </div>
+
+                    <div className="campo-grupo">
+                      <label className="campo-label" htmlFor="campo-correo">Correo electrónico (si eres cliente nuevo)</label>
+                      <input
+                        id="campo-correo"
+                        type="email"
+                        autoComplete="email"
+                        maxLength={254}
+                        className={`campo-input ${erroresDatos.correo ? 'con-error' : ''}`}
+                        placeholder="tucorreo@gmail.com"
+                        value={datosCliente.correo}
+                        onChange={(e) => {
+                          actualizarCampo('correo', e.target.value);
+                          setErroresDatos((actuales) => ({ ...actuales, correo: '' }));
+                        }}
+                      />
+                      {erroresDatos.correo && <span className="campo-ayuda-error">{erroresDatos.correo}</span>}
+                    </div>
                   </div>
+                  <p className="subtexto-bloque">
+                    Para clientes nuevos, se requiere un correo válido para recuperar el acceso. En clientes existentes,
+                    el correo de la ficha solo lo puede agregar o cambiar el administrador.
+                  </p>
                 </section>
 
                 <div className="reserva-acciones acciones-dos-botones">
@@ -799,6 +846,12 @@ export function ReservaPage() {
                       <span>Teléfono</span>
                       <strong>{datosCliente.telefono}</strong>
                     </div>
+                    {datosCliente.correo && (
+                      <div className="confirma-fila">
+                        <span>Correo ingresado</span>
+                        <strong>{datosCliente.correo}</strong>
+                      </div>
+                    )}
                     <div className="confirma-fila">
                       <span>Cancha</span>
                       <strong>Cancha {canchaActual?.numeroCancha}</strong>

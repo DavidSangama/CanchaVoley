@@ -47,7 +47,7 @@ API REST / Spring Boot (Railway)
 PostgreSQL (Neon)
 ```
 
-Los datos comerciales y las reservas se solicitan a la API; los borradores del formulario y el token de gestión del cliente se conservan temporalmente en `sessionStorage`. Las credenciales y la URL de la base de datos se configuran mediante variables de entorno en el servicio del backend.
+Los datos comerciales y las reservas se solicitan a la API; los borradores del formulario y el token de gestión del cliente se conservan temporalmente en `sessionStorage`. Los clientes nuevos registran un correo electrónico para poder recuperar el acceso a sus reservas; el correo de clientes ya existentes se agrega desde el panel administrativo.
 
 ## Requisitos para ejecutar localmente
 
@@ -68,6 +68,10 @@ Desde la carpeta `backend`, define las variables de entorno para conectarte a Po
 | `DB_PASSWORD` | Contraseña de PostgreSQL | Definir localmente; no subirla al repositorio |
 | `ADMIN_USERNAME` | Usuario del panel administrativo | `admin` |
 | `ADMIN_PASSWORD` | Contraseña del panel; mínimo 12 caracteres | Definir localmente; no subirla al repositorio |
+| `GMAIL_SMTP_USERNAME` | Cuenta Gmail usada para enviar códigos de recuperación | Definir como secreto |
+| `GMAIL_SMTP_APP_PASSWORD` | Contraseña de aplicación de Gmail (no la contraseña normal) | Definir como secreto |
+| `GMAIL_SMTP_HOST` | Servidor SMTP (opcional) | `smtp.gmail.com` |
+| `GMAIL_SMTP_PORT` | Puerto STARTTLS (opcional) | `587` |
 | `PORT` | Puerto HTTP del backend (opcional) | `6767` |
 | `FRONTEND_URL` | Origen permitido por CORS (opcional) | `http://localhost:5173` |
 
@@ -98,6 +102,16 @@ export FRONTEND_URL="http://localhost:5173"
 ```
 
 El backend queda disponible en `http://localhost:6767`. Configura el esquema `renta_cancha` y las tablas requeridas antes de iniciarlo. `spring.jpa.hibernate.ddl-auto` está en `none`, así que Spring no crea las tablas automáticamente. Este repositorio no incluye un script inicial completo de esquema ni datos de prueba: los archivos en [`backend/sql`](./backend/sql) son cambios incrementales y presuponen que ya existe la base inicial. Para una instalación local desde cero, restaura o crea primero esa estructura en PostgreSQL.
+
+Antes de ejecutar una versión con recuperación por correo, aplica la migración [`20261009_add_cliente_email_recovery.sql`](./backend/sql/20261009_add_cliente_email_recovery.sql) en la base de datos de la aplicación. La migración agrega el correo del cliente y las tablas para códigos de recuperación; los clientes existentes quedan inicialmente sin correo.
+
+Con `psql` instalado, desde la raíz del repositorio puedes aplicarla con:
+
+```powershell
+psql -h <host> -p <puerto> -U <usuario> -d <base> -v ON_ERROR_STOP=1 -f backend/sql/20261009_add_cliente_email_recovery.sql
+```
+
+La orden solicita la contraseña de PostgreSQL interactivamente. También puedes ejecutar el contenido del archivo desde la consola SQL de tu proveedor, en la base usada por el backend.
 
 ### 2. Configurar y ejecutar el frontend
 
@@ -148,9 +162,27 @@ Para la prueba de aceptación desplegada, valida el flujo de crear, listar, edit
 
 La API usa JSON. Las operaciones de escritura utilizan los métodos HTTP correspondientes (`POST`, `PUT`, `PATCH` y `DELETE`); las rutas exactas y sus parámetros se definen en los controladores del backend.
 
+### Activar recuperación por correo con Gmail
+
+1. En la cuenta Gmail que enviará los códigos, activa la verificación en dos pasos y crea una **contraseña de aplicación**. Usa esa contraseña de aplicación, no la contraseña normal de Gmail; al configurarla, ingrésala sin espacios. Google puede no ofrecer contraseñas de aplicación en algunas cuentas administradas.
+2. Ejecuta la migración de correo indicada en la sección de ejecución local, conectándote a la misma base de datos que utilizará el backend.
+3. En los secretos/variables del backend (por ejemplo, la sección **Variables** de Railway), configura `GMAIL_SMTP_USERNAME` con la cuenta emisora y `GMAIL_SMTP_APP_PASSWORD` con su contraseña de aplicación. No pongas estos datos en el frontend, el repositorio ni el chat. `GMAIL_SMTP_HOST` y `GMAIL_SMTP_PORT` son opcionales y por defecto usan `smtp.gmail.com:587` con STARTTLS.
+4. Para desarrollo local en PowerShell, define las dos variables en la terminal antes de iniciar el backend:
+
+   ```powershell
+   $env:GMAIL_SMTP_USERNAME = "tu-cuenta@gmail.com"
+   $env:GMAIL_SMTP_APP_PASSWORD = "contraseña-de-aplicación"
+   .\mvnw.cmd spring-boot:run
+   ```
+
+5. Reinicia/despliega el backend y prueba solicitar y verificar un código usando una cuenta de correo controlada. Los códigos vencen en 10 minutos; se permiten tres envíos cada 15 minutos y hasta cinco intentos de verificación.
+6. Desde el panel de administración, agrega el correo correcto a cada cliente que ya existía antes de esta migración. El correo asociado a un cliente existente no se cambia durante una reserva; así, conocer su DNI no permite reemplazar la dirección usada para recuperar el acceso. Un correo solo puede estar asociado a un cliente.
+
+La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los enlaces/tokens de gestión anteriores y se entrega uno nuevo. Si las credenciales de Gmail faltan, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
+
 ## Seguridad y configuración
 
 - No publiques contraseñas, tokens ni archivos de entorno con valores secretos.
 - `VITE_API_URL` es una variable de configuración del frontend y queda incorporada al bundle al construirlo; no debe contener secretos.
-- En producción, define `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `PORT` y `FRONTEND_URL` en la configuración del servicio de backend.
+- En producción, define `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `PORT` y `FRONTEND_URL` en la configuración del servicio de backend. Configura `GMAIL_SMTP_USERNAME` y `GMAIL_SMTP_APP_PASSWORD` como secretos solo si activarás la recuperación por correo.
 - Para CORS, revisa los orígenes permitidos en `backend/src/main/java/com/canchavoley/backend/config/CorsConfig.java`.

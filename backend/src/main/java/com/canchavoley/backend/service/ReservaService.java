@@ -22,13 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,8 +51,6 @@ public class ReservaService {
     @Autowired
     private ReiniciarIdentidadesService reiniciarIdentidadesService;
 
-    private final SecureRandom secureRandom = new SecureRandom();
-
     // --- GETs ---
     public List<Reserva> obtenerTodas() {
         return reservaRepository.findAll();
@@ -81,15 +74,13 @@ public class ReservaService {
 
     @Transactional
     public ReservaCreadaResponse crearConTokenCancelacion(Reserva reserva) {
-        byte[] bytesToken = new byte[32];
-        secureRandom.nextBytes(bytesToken);
-        String tokenCancelacion = Base64.getUrlEncoder().withoutPadding().encodeToString(bytesToken);
+        String tokenCancelacion = TokenGestionUtils.generarToken();
 
-        reserva.setTokenCancelacionHash(hashToken(tokenCancelacion));
+        reserva.setTokenCancelacionHash(TokenGestionUtils.hashToken(tokenCancelacion));
         Reserva reservaGuardada = reservaRepository.save(resolverRelaciones(reserva));
         tokenGestionClienteRepository.save(new TokenGestionCliente(
                 reservaGuardada.getCliente(),
-                hashToken(tokenCancelacion)));
+                TokenGestionUtils.hashToken(tokenCancelacion)));
         return new ReservaCreadaResponse(reservaGuardada.getIdReserva(), tokenCancelacion);
     }
 
@@ -164,7 +155,7 @@ public class ReservaService {
         if (token == null || token.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        return reservaRepository.findByIdReservaAndTokenCancelacionHash(idReserva, hashToken(token))
+        return reservaRepository.findByIdReservaAndTokenCancelacionHash(idReserva, TokenGestionUtils.hashToken(token))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
@@ -182,7 +173,7 @@ public class ReservaService {
         if (token == null || token.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        String hash = hashToken(token);
+        String hash = TokenGestionUtils.hashToken(token);
         return tokenGestionClienteRepository.findByTokenHash(hash)
                 .map(tokenCliente -> tokenCliente.getCliente().getIdCliente())
                 .or(() -> reservaRepository.findByTokenCancelacionHash(hash)
@@ -200,15 +191,6 @@ public class ReservaService {
                 reserva.getHorario().getHora().toString(),
                 reserva.getHorario().getPrecio(),
                 pago == null ? null : pago.getEstado());
-    }
-
-    private String hashToken(String token) {
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException error) {
-            throw new IllegalStateException("No se pudo validar el token de cancelación.", error);
-        }
     }
 
     // --- Resuelve las relaciones (cliente/cancha/horario) por su ID real ---

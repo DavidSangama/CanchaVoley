@@ -2,7 +2,11 @@ package com.canchavoley.backend.repository;
 
 import com.canchavoley.backend.model.Reserva;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -31,6 +35,11 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
             Long idCancha,
             Long idHorario,
             Long idReserva);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Reserva r SET r.tokenCancelacionHash = null WHERE r.cliente.idCliente = :idCliente")
+    int revocarTokensDeCliente(@Param("idCliente") Long idCliente);
 
     // Eliminar todas las reservas de una fecha específica
     void deleteByFecha(LocalDate fecha);

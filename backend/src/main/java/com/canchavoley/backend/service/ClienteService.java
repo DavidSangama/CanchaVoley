@@ -7,14 +7,19 @@ import com.canchavoley.backend.repository.PagoRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
 import com.canchavoley.backend.repository.TokenGestionClienteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Service
 public class ClienteService {
+
+    private static final Pattern FORMATO_CORREO = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
     @Autowired
     private ClienteRepository clienteRepository;
@@ -54,6 +59,7 @@ public class ClienteService {
 
     // --- POSTs ---
     public Cliente guardar(Cliente cliente) {
+        cliente.setCorreo(validarCorreo(cliente.getCorreo()));
         return clienteRepository.save(cliente);
     }
 
@@ -69,7 +75,19 @@ public class ClienteService {
         cliente.setApellido(clienteDetalles.getApellido());
         cliente.setTelefono(clienteDetalles.getTelefono());
         cliente.setDni(clienteDetalles.getDni());
+        cliente.setCorreo(validarCorreo(clienteDetalles.getCorreo()));
         return clienteRepository.save(cliente);
+    }
+
+    private String validarCorreo(String correo) {
+        if (correo == null || correo.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El correo electrónico es obligatorio.");
+        }
+        String normalizado = correo.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalizado.length() > 254 || !FORMATO_CORREO.matcher(normalizado).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ingresa un correo electrónico válido.");
+        }
+        return normalizado;
     }
 
     public Cliente actualizarTelefono(Long id, String nuevoTelefono) {
