@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -144,6 +145,22 @@ class CorreoRecuperacionServiceTest {
         verify(codigoRepository).registrarIntentoFallido(42L);
         verify(reservaRepository, never()).revocarTokensDeCliente(any());
         verify(tokenRepository, never()).save(any());
+    }
+
+    @Test
+    void removesSpacesFromGoogleApplicationPassword() {
+        assertEquals(
+                "abcdefghijklmnop",
+                CorreoRecuperacionService.normalizarContrasenaAplicacion("abcd efgh ijkl mnop"));
+    }
+
+    @Test
+    void smtpDiagnosticsClassifyAuthenticationErrorsWithoutLoggingMessages() {
+        String diagnostico = CorreoRecuperacionService.diagnosticoSeguro(
+                new jakarta.mail.AuthenticationFailedException("sensitive smtp response"));
+
+        assertEquals("autenticación rechazada (AuthenticationFailedException)", diagnostico);
+        assertFalse(diagnostico.contains("sensitive"));
     }
 
     private static Cliente cliente() {

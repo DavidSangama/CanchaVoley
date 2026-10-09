@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -60,8 +64,8 @@ public class CorreoRecuperacionService {
         this.tokenRepository = tokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.mailSender = mailSender;
-        this.gmailUsername = gmailUsername;
-        this.gmailAppPassword = gmailAppPassword;
+        this.gmailUsername = gmailUsername.trim();
+        this.gmailAppPassword = normalizarContrasenaAplicacion(gmailAppPassword);
     }
 
     public RecuperacionCorreoResponse solicitarCodigo(String correo) {
@@ -132,7 +136,9 @@ public class CorreoRecuperacionService {
                     """.formatted(codigo));
             mailSender.send(mensaje);
         } catch (MailException | MessagingException error) {
-            LOGGER.error("No se pudo enviar un código de recuperación por correo.");
+            LOGGER.error(
+                    "No se pudo enviar un código de recuperación por correo. Diagnóstico SMTP: {}",
+                    diagnosticoSeguro(error));
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
                     "No se pudo enviar el correo de recuperación. Intenta más tarde.");
@@ -155,6 +161,41 @@ public class CorreoRecuperacionService {
         return normalizado.length() <= 254 && normalizado.matches(FORMATO_CORREO)
                 ? normalizado
                 : null;
+    }
+
+    static String normalizarContrasenaAplicacion(String contrasena) {
+        return contrasena == null ? "" : contrasena.replaceAll("\\s", "");
+    }
+
+    static String diagnosticoSeguro(Throwable error) {
+        StringBuilder tipos = new StringBuilder();
+        Throwable actual = error;
+        boolean falloAutenticacion = false;
+        boolean falloConexion = false;
+        int profundidad = 0;
+        while (actual != null && profundidad < 5) {
+            if (!tipos.isEmpty()) {
+                tipos.append(" -> ");
+            }
+            String tipo = actual.getClass().getSimpleName();
+            tipos.append(tipo);
+            falloAutenticacion |= actual instanceof MailAuthenticationException
+                    || actual instanceof jakarta.mail.AuthenticationFailedException;
+            falloConexion |= actual instanceof ConnectException
+                    || actual instanceof SocketTimeoutException
+                    || actual instanceof UnknownHostException;
+            Throwable causa = actual.getCause();
+            if (causa == actual) {
+                break;
+            }
+            actual = causa;
+            profundidad++;
+        }
+
+        String categoria = falloAutenticacion
+                ? "autenticación rechazada"
+                : falloConexion ? "conexión SMTP fallida" : "error del proveedor SMTP";
+        return categoria + " (" + tipos + ")";
     }
 
     private static ResponseStatusException codigoInvalido() {
