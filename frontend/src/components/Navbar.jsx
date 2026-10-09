@@ -115,15 +115,13 @@ export const Navbar = ({ onContacto, onLogoDoubleClick, contactoAbierto = false 
           >
             Contacto
           </Link>
-          {tokenGestion && (
-            <Link
-              className={`enlace ${location.pathname === '/mis-reservas' ? 'activo' : ''}`}
-              to={`/mis-reservas#${tokenGestion}`}
-              onClick={cerrarMenu}
-            >
-              Mis reservas
-            </Link>
-          )}
+          <Link
+            className={`enlace ${location.pathname === '/mis-reservas' ? 'activo' : ''}`}
+            to={tokenGestion ? `/mis-reservas#${tokenGestion}` : '/mis-reservas'}
+            onClick={cerrarMenu}
+          >
+            Mis reservas
+          </Link>
           <Link className="btn btn-primario menu-cta" to="/reservar" onClick={cerrarMenu}>
             Reservar
           </Link>
