@@ -68,10 +68,8 @@ Desde la carpeta `backend`, define las variables de entorno para conectarte a Po
 | `DB_PASSWORD` | Contraseña de PostgreSQL | Definir localmente; no subirla al repositorio |
 | `ADMIN_USERNAME` | Usuario del panel administrativo | `admin` |
 | `ADMIN_PASSWORD` | Contraseña del panel; mínimo 12 caracteres | Definir localmente; no subirla al repositorio |
-| `GMAIL_SMTP_USERNAME` | Cuenta Gmail usada para enviar códigos de recuperación | Definir como secreto |
-| `GMAIL_SMTP_APP_PASSWORD` | Contraseña de aplicación de Gmail (no la contraseña normal) | Definir como secreto |
-| `GMAIL_SMTP_HOST` | Servidor SMTP (opcional) | `smtp.gmail.com` |
-| `GMAIL_SMTP_PORT` | Puerto STARTTLS (opcional) | `587` |
+| `RESEND_API_KEY` | Clave secreta de la API de Resend | Definir como secreto |
+| `RESEND_FROM_EMAIL` | Remitente autorizado en Resend | `CanchaVoley <reservas@tu-dominio-verificado.com>` |
 | `PORT` | Puerto HTTP del backend (opcional) | `6767` |
 | `FRONTEND_URL` | Origen permitido por CORS (opcional) | `http://localhost:5173` |
 
@@ -162,27 +160,27 @@ Para la prueba de aceptación desplegada, valida el flujo de crear, listar, edit
 
 La API usa JSON. Las operaciones de escritura utilizan los métodos HTTP correspondientes (`POST`, `PUT`, `PATCH` y `DELETE`); las rutas exactas y sus parámetros se definen en los controladores del backend.
 
-### Activar recuperación por correo con Gmail
+### Activar recuperación por correo con Resend
 
-1. En la cuenta Gmail que enviará los códigos, activa la verificación en dos pasos y crea una **contraseña de aplicación**. Usa esa contraseña de aplicación, no la contraseña normal de Gmail; al configurarla, ingrésala sin espacios. Google puede no ofrecer contraseñas de aplicación en algunas cuentas administradas.
-2. Ejecuta la migración de correo indicada en la sección de ejecución local, conectándote a la misma base de datos que utilizará el backend.
-3. En los secretos/variables del backend (por ejemplo, la sección **Variables** de Railway), configura `GMAIL_SMTP_USERNAME` con la cuenta emisora y `GMAIL_SMTP_APP_PASSWORD` con su contraseña de aplicación. No pongas estos datos en el frontend, el repositorio ni el chat. `GMAIL_SMTP_HOST` y `GMAIL_SMTP_PORT` son opcionales y por defecto usan `smtp.gmail.com:587` con STARTTLS.
-4. Para desarrollo local en PowerShell, define las dos variables en la terminal antes de iniciar el backend:
+1. Crea una cuenta en Resend y genera una API key. Guárdala como secreto `RESEND_API_KEY` en las variables del backend; nunca la pongas en el frontend, el repositorio ni el chat.
+2. Para enviar códigos a cualquier cliente, agrega y verifica en Resend un dominio que controles y configura los registros DNS que Resend indique. Define `RESEND_FROM_EMAIL` usando una dirección de ese dominio verificado. El remitente de prueba de Resend sirve solo para probar con la dirección permitida por Resend, no para enviar a todos los clientes.
+3. Ejecuta la migración de correo indicada en la sección de ejecución local, conectándote a la misma base de datos que utilizará el backend, si aún no se ha aplicado.
+4. Para desarrollo local en PowerShell, define las variables en la terminal antes de iniciar el backend:
 
    ```powershell
-   $env:GMAIL_SMTP_USERNAME = "tu-cuenta@gmail.com"
-   $env:GMAIL_SMTP_APP_PASSWORD = "contraseña-de-aplicación"
+   $env:RESEND_API_KEY = "re_xxxxxxxxx"
+   $env:RESEND_FROM_EMAIL = "CanchaVoley <reservas@tu-dominio-verificado.com>"
    .\mvnw.cmd spring-boot:run
    ```
 
 5. Reinicia/despliega el backend y prueba solicitar y verificar un código usando una cuenta de correo controlada. Los códigos vencen en 10 minutos; se permiten tres envíos cada 15 minutos y hasta cinco intentos de verificación.
 6. Desde el panel de administración, agrega el correo correcto a cada cliente que ya existía antes de esta migración. El correo asociado a un cliente existente no se cambia durante una reserva; así, conocer su DNI no permite reemplazar la dirección usada para recuperar el acceso. Un correo solo puede estar asociado a un cliente.
 
-La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los enlaces/tokens de gestión anteriores y se entrega uno nuevo. Si las credenciales de Gmail faltan, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
+La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los enlaces/tokens de gestión anteriores y se entrega uno nuevo. Si falta `RESEND_API_KEY` o `RESEND_FROM_EMAIL`, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
 
 ## Seguridad y configuración
 
 - No publiques contraseñas, tokens ni archivos de entorno con valores secretos.
 - `VITE_API_URL` es una variable de configuración del frontend y queda incorporada al bundle al construirlo; no debe contener secretos.
-- En producción, define `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `PORT` y `FRONTEND_URL` en la configuración del servicio de backend. Configura `GMAIL_SMTP_USERNAME` y `GMAIL_SMTP_APP_PASSWORD` como secretos solo si activarás la recuperación por correo.
+- En producción, define `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `PORT` y `FRONTEND_URL` en la configuración del servicio de backend. Configura `RESEND_API_KEY` como secreto y `RESEND_FROM_EMAIL` como variable de configuración para activar la recuperación por correo.
 - Para CORS, revisa los orígenes permitidos en `backend/src/main/java/com/canchavoley/backend/config/CorsConfig.java`.

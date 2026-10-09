@@ -6,20 +6,16 @@ import com.canchavoley.backend.repository.CodigoRecuperacionRepository;
 import com.canchavoley.backend.repository.ClienteRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
 import com.canchavoley.backend.repository.TokenGestionClienteRepository;
-import jakarta.mail.Session;
-import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
-import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,7 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,39 +48,40 @@ class CorreoRecuperacionServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private JavaMailSender mailSender;
+    private ResendEmailSender emailSender;
 
     private CorreoRecuperacionService correoRecuperacionService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(emailSender.estaConfigurado()).thenReturn(true);
         correoRecuperacionService = new CorreoRecuperacionService(
                 clienteRepository,
                 codigoRepository,
                 reservaRepository,
                 tokenRepository,
                 passwordEncoder,
-                mailSender,
-                "sender@example.com",
-                "app-password");
+                emailSender);
     }
 
     @Test
-    void sendsAHashedTemporaryCodeToTheRegisteredAddress() throws Exception {
+    void sendsAHashedTemporaryCodeToTheRegisteredAddress() {
         Cliente cliente = cliente();
         when(clienteRepository.findByCorreoIgnoreCase("cliente@example.com")).thenReturn(Optional.of(cliente));
         when(passwordEncoder.encode(anyString())).thenReturn("bcrypt-code-hash");
         when(codigoRepository.registrarSolicitud(42L, "bcrypt-code-hash")).thenReturn(true);
-        when(mailSender.createMimeMessage()).thenReturn(new MimeMessage(Session.getInstance(new Properties())));
 
         var response = correoRecuperacionService.solicitarCodigo(" Cliente@Example.com ");
 
         assertEquals(
                 "Si el correo corresponde a una cuenta, recibirás un código para recuperar tu acceso.",
                 response.mensaje());
-        ArgumentCaptor<MimeMessage> mensaje = ArgumentCaptor.forClass(MimeMessage.class);
-        verify(mailSender).send(mensaje.capture());
-        assertTrue(((String) mensaje.getValue().getContent()).matches("(?s).*\\b\\d{6}\\b.*"));
+        ArgumentCaptor<String> texto = ArgumentCaptor.forClass(String.class);
+        verify(emailSender).enviar(
+                eq("cliente@example.com"),
+                eq("Código para recuperar tus reservas"),
+                texto.capture());
+        assertTrue(texto.getValue().matches("(?s).*\\b\\d{6}\\b.*"));
         verify(codigoRepository).registrarSolicitud(42L, "bcrypt-code-hash");
     }
 
@@ -95,7 +94,7 @@ class CorreoRecuperacionServiceTest {
         assertEquals(
                 "Si el correo corresponde a una cuenta, recibirás un código para recuperar tu acceso.",
                 response.mensaje());
-        verify(mailSender, never()).send(any(MimeMessage.class));
+        verify(emailSender, never()).enviar(anyString(), anyString(), anyString());
         verify(codigoRepository, never()).registrarSolicitud(any(), anyString());
     }
 
@@ -108,7 +107,7 @@ class CorreoRecuperacionServiceTest {
 
         correoRecuperacionService.solicitarCodigo("cliente@example.com");
 
-        verify(mailSender, never()).send(any(MimeMessage.class));
+        verify(emailSender, never()).enviar(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -148,18 +147,14 @@ class CorreoRecuperacionServiceTest {
     }
 
     @Test
-    void removesSpacesFromGoogleApplicationPassword() {
-        assertEquals(
-                "abcdefghijklmnop",
-                CorreoRecuperacionService.normalizarContrasenaAplicacion("abcd efgh ijkl mnop"));
-    }
-
-    @Test
-    void smtpDiagnosticsClassifyAuthenticationErrorsWithoutLoggingMessages() {
+    void resendDiagnosticsIncludeStatusWithoutLoggingResponseBodies() {
         String diagnostico = CorreoRecuperacionService.diagnosticoSeguro(
-                new jakarta.mail.AuthenticationFailedException("sensitive smtp response"));
+                new ResendEmailSender.DeliveryException(
+                        "sensitive provider response",
+                        401,
+                        new IllegalStateException("sensitive provider response")));
 
-        assertEquals("autenticación rechazada (AuthenticationFailedException)", diagnostico);
+        assertEquals("Resend respondió HTTP 401", diagnostico);
         assertFalse(diagnostico.contains("sensitive"));
     }
 

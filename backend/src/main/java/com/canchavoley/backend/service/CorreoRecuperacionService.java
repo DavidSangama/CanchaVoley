@@ -8,24 +8,18 @@ import com.canchavoley.backend.repository.CodigoRecuperacionRepository;
 import com.canchavoley.backend.repository.ClienteRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
 import com.canchavoley.backend.repository.TokenGestionClienteRepository;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.mail.MailAuthenticationException;
-import org.springframework.mail.MailException;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.security.SecureRandom;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.security.SecureRandom;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -45,9 +39,7 @@ public class CorreoRecuperacionService {
     private final ReservaRepository reservaRepository;
     private final TokenGestionClienteRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
-    private final String gmailUsername;
-    private final String gmailAppPassword;
+    private final ResendEmailSender emailSender;
 
     public CorreoRecuperacionService(
             ClienteRepository clienteRepository,
@@ -55,17 +47,13 @@ public class CorreoRecuperacionService {
             ReservaRepository reservaRepository,
             TokenGestionClienteRepository tokenRepository,
             PasswordEncoder passwordEncoder,
-            JavaMailSender mailSender,
-            @Value("${GMAIL_SMTP_USERNAME:}") String gmailUsername,
-            @Value("${GMAIL_SMTP_APP_PASSWORD:}") String gmailAppPassword) {
+            ResendEmailSender emailSender) {
         this.clienteRepository = clienteRepository;
         this.codigoRepository = codigoRepository;
         this.reservaRepository = reservaRepository;
         this.tokenRepository = tokenRepository;
         this.passwordEncoder = passwordEncoder;
-        this.mailSender = mailSender;
-        this.gmailUsername = gmailUsername.trim();
-        this.gmailAppPassword = normalizarContrasenaAplicacion(gmailAppPassword);
+        this.emailSender = emailSender;
     }
 
     public RecuperacionCorreoResponse solicitarCodigo(String correo) {
@@ -124,20 +112,14 @@ public class CorreoRecuperacionService {
 
     private void enviarCodigo(String correo, String codigo) {
         try {
-            MimeMessage mensaje = mailSender.createMimeMessage();
-            var helper = new org.springframework.mail.javamail.MimeMessageHelper(mensaje, false, "UTF-8");
-            helper.setFrom(gmailUsername);
-            helper.setTo(correo);
-            helper.setSubject("Código para recuperar tus reservas");
-            helper.setText("""
+            emailSender.enviar(correo, "Código para recuperar tus reservas", """
                     Tu código de recuperación es: %s
 
                     El código vence en 10 minutos. Si no solicitaste este código, puedes ignorar este mensaje.
                     """.formatted(codigo));
-            mailSender.send(mensaje);
-        } catch (MailException | MessagingException error) {
+        } catch (ResendEmailSender.DeliveryException error) {
             LOGGER.error(
-                    "No se pudo enviar un código de recuperación por correo. Diagnóstico SMTP: {}",
+                    "No se pudo enviar un código de recuperación por correo. Diagnóstico Resend: {}",
                     diagnosticoSeguro(error));
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
@@ -146,7 +128,7 @@ public class CorreoRecuperacionService {
     }
 
     private void validarConfiguracion() {
-        if (gmailUsername.isBlank() || gmailAppPassword.isBlank()) {
+        if (!emailSender.estaConfigurado()) {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "La recuperación por correo todavía no está configurada.");
@@ -163,14 +145,14 @@ public class CorreoRecuperacionService {
                 : null;
     }
 
-    static String normalizarContrasenaAplicacion(String contrasena) {
-        return contrasena == null ? "" : contrasena.replaceAll("\\s", "");
-    }
-
     static String diagnosticoSeguro(Throwable error) {
+        if (error instanceof ResendEmailSender.DeliveryException resendError
+                && resendError.statusCode() != null) {
+            return "Resend respondió HTTP " + resendError.statusCode();
+        }
+
         StringBuilder tipos = new StringBuilder();
         Throwable actual = error;
-        boolean falloAutenticacion = false;
         boolean falloConexion = false;
         int profundidad = 0;
         while (actual != null && profundidad < 5) {
@@ -179,8 +161,6 @@ public class CorreoRecuperacionService {
             }
             String tipo = actual.getClass().getSimpleName();
             tipos.append(tipo);
-            falloAutenticacion |= actual instanceof MailAuthenticationException
-                    || actual instanceof jakarta.mail.AuthenticationFailedException;
             falloConexion |= actual instanceof ConnectException
                     || actual instanceof SocketTimeoutException
                     || actual instanceof UnknownHostException;
@@ -192,9 +172,7 @@ public class CorreoRecuperacionService {
             profundidad++;
         }
 
-        String categoria = falloAutenticacion
-                ? "autenticación rechazada"
-                : falloConexion ? "conexión SMTP fallida" : "error del proveedor SMTP";
+        String categoria = falloConexion ? "conexión con Resend fallida" : "error del proveedor Resend";
         return categoria + " (" + tipos + ")";
     }
 
