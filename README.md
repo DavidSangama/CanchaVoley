@@ -13,6 +13,7 @@ Aplicación web para consultar canchas y horarios, realizar reservas de vóley y
 
 - **Frontend:** https://cancha-voley.vercel.app/
 - **Backend (API):** https://canchavoley-production.up.railway.app
+- **Consulta pública de canchas (API):** https://canchavoley-production.up.railway.app/api/canchas
 - **Base de datos:** PostgreSQL alojado en Neon
 
 ## Tecnologías
