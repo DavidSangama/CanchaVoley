@@ -5,6 +5,7 @@ import { Navbar } from '../components/Navbar';
 import { SelectEstilizado } from '../components/SelectEstilizado';
 import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
+import { guardarTokenGestion } from '../services/gestionReservaSession';
 
 const ESTADOS_PAGO = {
   PENDIENTE_VERIFICACION: 'Pendiente de verificación',
@@ -86,6 +87,7 @@ export function GestionReservaPage() {
       if (typeof respuesta?.tokenGestion !== 'string' || !respuesta.tokenGestion) {
         throw new Error('La verificación no devolvió el acceso privado.');
       }
+      guardarTokenGestion(respuesta.tokenGestion);
       navigate(`/mis-reservas#${respuesta.tokenGestion}`);
     } catch (err) {
       console.error('No se pudo verificar el código de recuperación por correo:', err);
