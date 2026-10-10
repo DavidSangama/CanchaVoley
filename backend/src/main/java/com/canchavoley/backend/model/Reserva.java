@@ -2,12 +2,11 @@ package com.canchavoley.backend.model;
 
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "reserva", schema = "renta_cancha", uniqueConstraints = {
-    @UniqueConstraint(name = "reserva_unica", columnNames = {"fecha", "id_cancha", "id_horario"})
-})
+@Table(name = "reserva", schema = "renta_cancha")
 public class Reserva {
 
     @Id
@@ -30,8 +29,11 @@ public class Reserva {
     @Column(name = "fecha", nullable = false)
     private LocalDate fecha;
 
+    @Column(name = "precio", nullable = false, precision = 10, scale = 2)
+    private BigDecimal precio;
+
     @JsonIgnore
-    @Column(name = "token_cancelacion_hash", length = 64)
+    @Column(name = "token_cancelacion_hash", length = 64, unique = true)
     private String tokenCancelacionHash;
 
     public Reserva() {
@@ -83,6 +85,14 @@ public class Reserva {
 
     public void setFecha(LocalDate fecha) {
         this.fecha = fecha;
+    }
+
+    public BigDecimal getPrecio() {
+        return precio;
+    }
+
+    public void setPrecio(BigDecimal precio) {
+        this.precio = precio;
     }
 
     public String getTokenCancelacionHash() {

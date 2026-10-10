@@ -1,12 +1,10 @@
 package com.canchavoley.backend.service;
 
 import com.canchavoley.backend.dto.RecuperacionCorreoResponse;
-import com.canchavoley.backend.dto.TokenGestionResponse;
+import com.canchavoley.backend.dto.AccesoReservasResponse;
 import com.canchavoley.backend.model.Cliente;
-import com.canchavoley.backend.model.TokenGestionCliente;
 import com.canchavoley.backend.repository.CodigoRecuperacionRepository;
 import com.canchavoley.backend.repository.ClienteRepository;
-import com.canchavoley.backend.repository.ReservaRepository;
 import com.canchavoley.backend.repository.TokenGestionClienteRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,22 +34,22 @@ public class CorreoRecuperacionService {
 
     private final ClienteRepository clienteRepository;
     private final CodigoRecuperacionRepository codigoRepository;
-    private final ReservaRepository reservaRepository;
     private final TokenGestionClienteRepository tokenRepository;
+    private final ReservaService reservaService;
     private final PasswordEncoder passwordEncoder;
     private final GmailApiEmailSender emailSender;
 
     public CorreoRecuperacionService(
             ClienteRepository clienteRepository,
             CodigoRecuperacionRepository codigoRepository,
-            ReservaRepository reservaRepository,
             TokenGestionClienteRepository tokenRepository,
+            ReservaService reservaService,
             PasswordEncoder passwordEncoder,
             GmailApiEmailSender emailSender) {
         this.clienteRepository = clienteRepository;
         this.codigoRepository = codigoRepository;
-        this.reservaRepository = reservaRepository;
         this.tokenRepository = tokenRepository;
+        this.reservaService = reservaService;
         this.passwordEncoder = passwordEncoder;
         this.emailSender = emailSender;
     }
@@ -79,7 +77,7 @@ public class CorreoRecuperacionService {
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
-    public TokenGestionResponse verificarCodigo(String correo, String codigo) {
+    public AccesoReservasResponse verificarCodigo(String correo, String codigo) {
         validarConfiguracion();
         String correoNormalizado = normalizarCorreo(correo);
         if (correoNormalizado == null || codigo == null || !codigo.matches("\\d{6}")) {
@@ -103,11 +101,8 @@ public class CorreoRecuperacionService {
         }
 
         codigoRepository.eliminar(idCliente);
-        reservaRepository.revocarTokensDeCliente(idCliente);
         tokenRepository.deleteAllByClienteIdCliente(idCliente);
-        String tokenGestion = TokenGestionUtils.generarToken();
-        tokenRepository.save(new TokenGestionCliente(cliente, TokenGestionUtils.hashToken(tokenGestion)));
-        return new TokenGestionResponse(tokenGestion);
+        return new AccesoReservasResponse(reservaService.generarTokensGestionCliente(idCliente));
     }
 
     private void enviarCodigo(String correo, String codigo) {

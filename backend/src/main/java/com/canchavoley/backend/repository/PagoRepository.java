@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -16,6 +17,8 @@ public interface PagoRepository extends JpaRepository<Pago, Long> {
 
     // Buscar pago asociado a una reserva específica
     Optional<Pago> findByReservaIdReserva(Long idReserva);
+
+    List<Pago> findByReserva_Horario_IdHorarioAndEstado(Long idHorario, EstadoPago estado);
 
     @Query("SELECT SUM(p.total) FROM Pago p WHERE p.estado = :estado")
     BigDecimal sumarTotalPorEstado(@Param("estado") EstadoPago estado);

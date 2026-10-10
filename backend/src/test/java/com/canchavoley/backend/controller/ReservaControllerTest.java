@@ -3,8 +3,9 @@ package com.canchavoley.backend.controller;
 import com.canchavoley.backend.config.SecurityConfig;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
 import com.canchavoley.backend.dto.ReservaGestionResponse;
+import com.canchavoley.backend.dto.ReservaGestionTokenResponse;
+import com.canchavoley.backend.dto.AccesoReservasResponse;
 import com.canchavoley.backend.dto.RecuperacionCorreoResponse;
-import com.canchavoley.backend.dto.TokenGestionResponse;
 import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.service.ReservaService;
 import com.canchavoley.backend.service.CorreoRecuperacionService;
@@ -93,12 +94,35 @@ class ReservaControllerTest {
     @Test
     void verifiesRecoveryCodeWithoutAuthentication() throws Exception {
         when(correoRecuperacionService.verificarCodigo("cliente@example.com", "123456"))
-                .thenReturn(new TokenGestionResponse("private-management-token"));
+                .thenReturn(new AccesoReservasResponse(java.util.List.of(
+                        new ReservaGestionTokenResponse(
+                                42L,
+                                java.time.LocalDate.of(2026, 10, 10),
+                                7L,
+                                2,
+                                3L,
+                                "10:30",
+                                java.math.BigDecimal.valueOf(20),
+                                EstadoPago.PENDIENTE_VERIFICACION,
+                                "first-private-token"),
+                        new ReservaGestionTokenResponse(
+                                43L,
+                                java.time.LocalDate.of(2026, 10, 11),
+                                8L,
+                                3,
+                                4L,
+                                "11:30",
+                                java.math.BigDecimal.valueOf(30),
+                                EstadoPago.REALIZADO,
+                                "second-private-token"))));
 
         mockMvc.perform(post("/api/reservas/recuperacion-correo/verificar")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"correo\":\"cliente@example.com\",\"codigo\":\"123456\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tokenGestion").value("private-management-token"));
+                .andExpect(jsonPath("$.reservas[0].idReserva").value(42))
+                .andExpect(jsonPath("$.reservas[0].tokenGestion").value("first-private-token"))
+                .andExpect(jsonPath("$.reservas[1].idReserva").value(43))
+                .andExpect(jsonPath("$.reservas[1].tokenGestion").value("second-private-token"));
     }
 }

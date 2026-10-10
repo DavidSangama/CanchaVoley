@@ -198,7 +198,7 @@ export function AdminPage() {
 
   const obtenerTotalReserva = (r) => {
     const pago = pagos.find((p) => p.reserva?.idReserva === r.idReserva);
-    return pago ? Number(pago.total) : Number(r.horario?.precio || 0);
+    return pago ? Number(pago.total) : Number(r.precio ?? r.horario?.precio ?? 0);
   };
 
   const reservasFiltradas = [...reservas]
@@ -927,7 +927,7 @@ export function AdminPage() {
                           <td>{r.cancha?.numeroCancha}</td>
                           <td>{formatearFechaCorta2(r.fecha)}</td>
                           <td>{r.horario?.hora?.slice(0, 5)}</td>
-                          <td>S/ {Number(r.horario?.precio)}</td>
+                          <td>S/ {Number(r.precio ?? r.horario?.precio)}</td>
                           <td>S/ {obtenerTotalReserva(r)}</td>
                           <td>
                             <button type="button" className="admin-link-editar" onClick={() => abrirEditarReserva(r)}>

@@ -11,9 +11,8 @@ import com.canchavoley.backend.repository.ClienteRepository;
 import com.canchavoley.backend.repository.HorarioRepository;
 import com.canchavoley.backend.repository.PagoRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
-import com.canchavoley.backend.repository.TokenGestionClienteRepository;
-import com.canchavoley.backend.model.TokenGestionCliente;
 import com.canchavoley.backend.dto.ReservaCreadaResponse;
+import com.canchavoley.backend.dto.ReservaGestionTokenResponse;
 import com.canchavoley.backend.dto.ReservaGestionResponse;
 import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import org.springframework.http.HttpStatus;
@@ -46,9 +45,6 @@ public class ReservaService {
     private PagoRepository pagoRepository;
 
     @Autowired
-    private TokenGestionClienteRepository tokenGestionClienteRepository;
-
-    @Autowired
     private ReiniciarIdentidadesService reiniciarIdentidadesService;
 
     // --- GETs ---
@@ -61,7 +57,7 @@ public class ReservaService {
     }
 
     public List<Reserva> obtenerPorFecha(LocalDate fecha) {
-        return reservaRepository.findByFecha(fecha);
+        return reservaRepository.findOcupadasByFecha(fecha);
     }
 
     public List<Reserva> obtenerPorCliente(Long idCliente) {
@@ -74,14 +70,43 @@ public class ReservaService {
 
     @Transactional
     public ReservaCreadaResponse crearConTokenCancelacion(Reserva reserva) {
+        if (reserva.getFecha() == null || reserva.getCancha() == null || reserva.getHorario() == null
+                || reserva.getHorario().getIdHorario() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La reserva requiere fecha, cancha y horario.");
+        }
+        Horario horario = bloquearYValidarDisponibilidad(
+                reserva.getFecha(),
+                reserva.getCancha().getIdCancha(),
+                reserva.getHorario().getIdHorario(),
+                null);
+        reserva.setHorario(horario);
+        reserva.setPrecio(horario.getPrecio());
         String tokenCancelacion = TokenGestionUtils.generarToken();
 
         reserva.setTokenCancelacionHash(TokenGestionUtils.hashToken(tokenCancelacion));
         Reserva reservaGuardada = reservaRepository.save(resolverRelaciones(reserva));
-        tokenGestionClienteRepository.save(new TokenGestionCliente(
-                reservaGuardada.getCliente(),
-                TokenGestionUtils.hashToken(tokenCancelacion)));
         return new ReservaCreadaResponse(reservaGuardada.getIdReserva(), tokenCancelacion);
+    }
+
+    @Transactional
+    public List<ReservaGestionTokenResponse> generarTokensGestionCliente(Long idCliente) {
+        List<Reserva> reservas = reservaRepository.findByClienteIdClienteOrderByFechaDescIdReservaDesc(idCliente);
+        List<String> tokens = reservas.stream()
+                .map(reserva -> {
+                    String token = TokenGestionUtils.generarToken();
+                    reserva.setTokenCancelacionHash(TokenGestionUtils.hashToken(token));
+                    return token;
+                })
+                .toList();
+        reservaRepository.saveAll(reservas);
+
+        return java.util.stream.IntStream.range(0, reservas.size())
+                .mapToObj(index -> {
+                    Reserva reserva = reservas.get(index);
+                    Pago pago = pagoRepository.findByReservaIdReserva(reserva.getIdReserva()).orElse(null);
+                    return crearRespuestaGestionConToken(reserva, pago, tokens.get(index));
+                })
+                .toList();
     }
 
     @Transactional
@@ -103,18 +128,20 @@ public class ReservaService {
     public ReservaGestionResponse obtenerGestionCliente(Long idReserva, String tokenGestion) {
         Reserva reserva = obtenerReservaConToken(idReserva, tokenGestion);
         Pago pago = pagoRepository.findByReservaIdReserva(idReserva)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                .orElse(null);
         return crearRespuestaGestion(reserva, pago);
     }
 
     @Transactional(readOnly = true)
     public List<ReservaGestionResponse> obtenerReservasCliente(String tokenGestion) {
-        Long idCliente = obtenerIdClientePorToken(tokenGestion);
-        return reservaRepository.findByClienteIdClienteOrderByFechaDescIdReservaDesc(idCliente).stream()
-                .map(reserva -> crearRespuestaGestion(
-                        reserva,
-                        pagoRepository.findByReservaIdReserva(reserva.getIdReserva()).orElse(null)))
-                .toList();
+        if (tokenGestion == null || tokenGestion.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        Reserva reserva = reservaRepository.findByTokenCancelacionHash(TokenGestionUtils.hashToken(tokenGestion))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return List.of(crearRespuestaGestion(
+                reserva,
+                pagoRepository.findByReservaIdReserva(reserva.getIdReserva()).orElse(null)));
     }
 
     @Transactional
@@ -136,15 +163,12 @@ public class ReservaService {
         if (idHorario == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selecciona un horario.");
         }
-        if (reservaRepository.existsByFechaAndCanchaIdCanchaAndHorarioIdHorarioAndIdReservaNot(
-                nuevaFecha, reserva.getCancha().getIdCancha(), idHorario, idReserva)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese horario ya está reservado.");
-        }
+        Horario horario = bloquearYValidarDisponibilidad(
+                nuevaFecha, reserva.getCancha().getIdCancha(), idHorario, idReserva);
 
-        Horario horario = horarioRepository.findById(idHorario)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El horario seleccionado no existe."));
         reserva.setFecha(nuevaFecha);
         reserva.setHorario(horario);
+        reserva.setPrecio(horario.getPrecio());
         pago.setTotal(horario.getPrecio());
         pagoRepository.save(pago);
         Reserva reservaActualizada = reservaRepository.save(reserva);
@@ -160,25 +184,36 @@ public class ReservaService {
     }
 
     private Reserva obtenerReservaDelClienteAutorizado(Long idReserva, String token) {
-        Long idClienteAutorizado = obtenerIdClientePorToken(token);
-        Reserva reserva = reservaRepository.findById(idReserva)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!idClienteAutorizado.equals(reserva.getCliente().getIdCliente())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-        return reserva;
+        return obtenerReservaConToken(idReserva, token);
     }
 
-    private Long obtenerIdClientePorToken(String token) {
-        if (token == null || token.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    private Horario bloquearYValidarDisponibilidad(
+            LocalDate fecha,
+            Long idCancha,
+            Long idHorario,
+            Long idReservaExcluida) {
+        Horario horario = horarioRepository.findByIdForUpdate(idHorario)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "El horario seleccionado no existe."));
+        if (reservaRepository.existsOcupada(fecha, idCancha, idHorario, idReservaExcluida)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese horario ya está reservado.");
         }
-        String hash = TokenGestionUtils.hashToken(token);
-        return tokenGestionClienteRepository.findByTokenHash(hash)
-                .map(tokenCliente -> tokenCliente.getCliente().getIdCliente())
-                .or(() -> reservaRepository.findByTokenCancelacionHash(hash)
-                        .map(reserva -> reserva.getCliente().getIdCliente()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return horario;
+    }
+
+    private ReservaGestionTokenResponse crearRespuestaGestionConToken(
+            Reserva reserva,
+            Pago pago,
+            String tokenGestion) {
+        return new ReservaGestionTokenResponse(
+                reserva.getIdReserva(),
+                reserva.getFecha(),
+                reserva.getCancha().getIdCancha(),
+                reserva.getCancha().getNumeroCancha(),
+                reserva.getHorario().getIdHorario(),
+                reserva.getHorario().getHora().toString(),
+                pago == null ? reserva.getPrecio() : pago.getTotal(),
+                pago == null ? null : pago.getEstado(),
+                tokenGestion);
     }
 
     private ReservaGestionResponse crearRespuestaGestion(Reserva reserva, Pago pago) {
@@ -189,7 +224,7 @@ public class ReservaService {
                 reserva.getCancha().getNumeroCancha(),
                 reserva.getHorario().getIdHorario(),
                 reserva.getHorario().getHora().toString(),
-                reserva.getHorario().getPrecio(),
+                pago == null ? reserva.getPrecio() : pago.getTotal(),
                 pago == null ? null : pago.getEstado());
     }
 
@@ -209,6 +244,9 @@ public class ReservaService {
             Horario horario = horarioRepository.findById(reserva.getHorario().getIdHorario())
                     .orElseThrow(() -> new RuntimeException("Horario no encontrado con id: " + reserva.getHorario().getIdHorario()));
             reserva.setHorario(horario);
+            if (reserva.getPrecio() == null) {
+                reserva.setPrecio(horario.getPrecio());
+            }
         }
         return reserva;
     }
@@ -218,16 +256,47 @@ public class ReservaService {
         return reservaRepository.save(resolverRelaciones(reserva));
     }
 
+    @Transactional
     public List<Reserva> guardarVarias(List<Reserva> reservas) {
-        reservas.forEach(this::resolverRelaciones);
+        java.util.Set<String> nuevasOcupaciones = new java.util.HashSet<>();
+        reservas.stream()
+                .sorted(java.util.Comparator.comparing(
+                        reserva -> reserva.getHorario().getIdHorario()))
+                .forEach(reserva -> {
+                    Long idHorario = reserva.getHorario().getIdHorario();
+                    bloquearYValidarDisponibilidad(
+                            reserva.getFecha(),
+                            reserva.getCancha().getIdCancha(),
+                            idHorario,
+                            null);
+                    String clave = reserva.getFecha() + ":" + reserva.getCancha().getIdCancha() + ":" + idHorario;
+                    if (!nuevasOcupaciones.add(clave)) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "El lote contiene horarios repetidos.");
+                    }
+                    resolverRelaciones(reserva);
+                });
         return reservaRepository.saveAll(reservas);
     }
 
     // --- PUTs ---
+    @Transactional
     public Reserva actualizar(Long id, Reserva detalles) {
         Reserva reserva = reservaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Reserva no encontrada con id: " + id));
+        Pago pago = pagoRepository.findByReservaIdReserva(id).orElse(null);
         Reserva detallesResueltos = resolverRelaciones(detalles);
+        if (pago == null || pago.getEstado() == EstadoPago.PENDIENTE_VERIFICACION) {
+            bloquearYValidarDisponibilidad(
+                    detalles.getFecha(),
+                    detallesResueltos.getCancha().getIdCancha(),
+                    detallesResueltos.getHorario().getIdHorario(),
+                    id);
+            reserva.setPrecio(detallesResueltos.getHorario().getPrecio());
+            if (pago != null) {
+                pago.setTotal(reserva.getPrecio());
+                pagoRepository.save(pago);
+            }
+        }
         reserva.setCliente(detallesResueltos.getCliente());
         reserva.setCancha(detallesResueltos.getCancha());
         reserva.setHorario(detallesResueltos.getHorario());
@@ -235,9 +304,18 @@ public class ReservaService {
         return reservaRepository.save(reserva);
     }
 
+    @Transactional
     public Reserva actualizarFecha(Long id, LocalDate nuevaFecha) {
         Reserva reserva = reservaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Reserva no encontrada con id: " + id));
+        Pago pago = pagoRepository.findByReservaIdReserva(id).orElse(null);
+        if (pago == null || pago.getEstado() == EstadoPago.PENDIENTE_VERIFICACION) {
+            bloquearYValidarDisponibilidad(
+                    nuevaFecha,
+                    reserva.getCancha().getIdCancha(),
+                    reserva.getHorario().getIdHorario(),
+                    id);
+        }
         reserva.setFecha(nuevaFecha);
         return reservaRepository.save(reserva);
     }

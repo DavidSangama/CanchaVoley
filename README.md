@@ -27,6 +27,7 @@ Aplicación web para consultar canchas y horarios, realizar reservas de vóley y
 
 - Consulta de canchas, horarios y precios desde el backend.
 - Flujo de reserva en línea: selección de fecha, cancha y horario, ingreso de datos y envío de la solicitud.
+- Los pagos pendientes bloquean el horario; los pagos cancelados o confirmados lo liberan. Cada reserva conserva su precio histórico cuando cambia la tarifa del horario.
 - Consulta y gestión de reservas del cliente mediante un token privado, tanto al crear una reserva como al recuperar el acceso por correo.
 - Recuperación de acceso mediante un código de un solo uso enviado al correo asociado al cliente.
 - Panel de administración para gestionar reservas, canchas, clientes, horarios y pagos.
@@ -48,16 +49,16 @@ API REST / Spring Boot (Railway)
 PostgreSQL (Neon)
 ```
 
-Los datos comerciales y las reservas se solicitan a la API; los borradores del formulario y el token de gestión del cliente se conservan temporalmente en `sessionStorage`.
+Los datos comerciales y las reservas se solicitan a la API; los borradores del formulario y los tokens de gestión por reserva se conservan temporalmente en `sessionStorage`.
 
 ### Acceso del cliente a sus reservas
 
-El acceso del cliente no usa una contraseña ni una sesión de autenticación tradicional: se autoriza con un token privado de gestión de reservas.
+El acceso del cliente no usa una contraseña ni una sesión de autenticación tradicional: cada reserva tiene su propio token privado de gestión.
 
-- Al confirmar una reserva, el backend devuelve un token y el frontend lo guarda en `sessionStorage`.
-- Si el cliente vuelve a la página de inicio en la misma pestaña, el enlace **Mis reservas** conserva ese acceso durante la sesión de la pestaña.
-- Si no tiene el token, el cliente puede solicitar un código de recuperación al correo asociado a su cuenta. Al verificarlo, el backend entrega un token nuevo, que también queda guardado en `sessionStorage`; los tokens de gestión anteriores quedan revocados.
-- Las operaciones privadas de consulta envían el token en la cabecera `X-Reservation-Token`. La página **Mis reservas** también acepta el token en el fragmento de la URL (`/mis-reservas#<token>`) para abrir el enlace directamente. Trata ese enlace como una credencial privada y no lo compartas. El guardado automático en `sessionStorage` es por pestaña; si no tienes el acceso guardado, puedes recuperarlo nuevamente por correo.
+- Al confirmar una reserva, el backend devuelve su token único y el frontend lo guarda en `sessionStorage`.
+- Si el cliente vuelve a la página de inicio en la misma pestaña, el enlace **Mis reservas** conserva los tokens de sus reservas durante la sesión.
+- Si no tiene esos tokens, puede solicitar un código de recuperación al correo asociado a su cuenta. Al verificarlo, el backend genera un token único nuevo para cada reserva del cliente; los tokens anteriores quedan revocados y se guardan los nuevos en `sessionStorage`.
+- Las operaciones privadas envían el token en la cabecera `X-Reservation-Token` y cada token permite consultar, cancelar o reprogramar únicamente su reserva. La página **Mis reservas** también acepta un token en el fragmento de la URL (`/mis-reservas#<token>`) para abrir esa reserva directamente. Trata ese enlace como una credencial privada y no lo compartas. El guardado automático en `sessionStorage` es por pestaña; si no tienes los accesos guardados, puedes recuperarlos nuevamente por correo.
 
 Para una cuenta nueva, el correo se registra al crear la primera reserva. Para clientes ya existentes, el administrador debe agregar o corregir el correo desde el panel administrativo. El sistema no reemplaza el correo de una cuenta existente al reservar usando su DNI.
 
@@ -125,6 +126,18 @@ psql -h <host> -p <puerto> -U <usuario> -d <base> -v ON_ERROR_STOP=1 -f backend/
 
 La orden solicita la contraseña de PostgreSQL interactivamente. También puedes ejecutar el contenido del archivo desde la consola SQL de tu proveedor, en la base usada por el backend.
 
+Antes de desplegar la gestión con tokens individuales, aplica también [`20261010_add_unique_reservation_management_tokens.sql`](./backend/sql/20261010_add_unique_reservation_management_tokens.sql). Este índice garantiza que cada reserva tenga un hash de token único:
+
+```powershell
+psql -h <host> -p <puerto> -U <usuario> -d <base> -v ON_ERROR_STOP=1 -f backend/sql/20261010_add_unique_reservation_management_tokens.sql
+```
+
+Aplica además [`20261010_release_cancelled_and_confirmed_slots.sql`](./backend/sql/20261010_release_cancelled_and_confirmed_slots.sql) antes de desplegar la liberación de horarios y la conservación del precio de cada reserva. La migración agrega el precio histórico a las reservas, lo inicializa con el total del pago existente cuando lo hay y elimina la restricción que impedía volver a reservar un horario liberado:
+
+```powershell
+psql -h <host> -p <puerto> -U <usuario> -d <base> -v ON_ERROR_STOP=1 -f backend/sql/20261010_release_cancelled_and_confirmed_slots.sql
+```
+
 ### 2. Configurar y ejecutar el frontend
 
 Desde la carpeta `frontend`, crea un archivo `.env.local` con la dirección base de la API:
@@ -179,8 +192,8 @@ Rutas relevantes para recuperar y gestionar las reservas de un cliente:
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/api/reservas/recuperacion-correo` | Solicita el envío de un código al correo indicado. La respuesta es genérica para no revelar si el correo está registrado. |
-| `POST` | `/api/reservas/recuperacion-correo/verificar` | Verifica el correo y el código de seis dígitos; devuelve un token privado de gestión. |
-| `GET` | `/api/reservas/gestion/cliente` | Devuelve las reservas asociadas al token privado enviado en `X-Reservation-Token`. |
+| `POST` | `/api/reservas/recuperacion-correo/verificar` | Verifica el correo y el código de seis dígitos; devuelve cada reserva con su token privado único. |
+| `GET` | `/api/reservas/gestion/cliente` | Devuelve únicamente la reserva asociada al token enviado en `X-Reservation-Token`. |
 | `GET` | `/api/reservas/{id}/gestion` | Devuelve la gestión de una reserva; requiere el token privado en `X-Reservation-Token`. |
 | `PATCH` | `/api/reservas/{id}/gestion` | Permite reprogramar una reserva; recibe `tokenCancelacion`, `fecha` e `idHorario` en el cuerpo JSON. |
 | `POST` | `/api/reservas/{id}/cancelar` | Permite solicitar la cancelación; recibe `tokenCancelacion` en el cuerpo JSON. |
@@ -206,7 +219,7 @@ La Gmail API permite mandar desde una cuenta Gmail sin comprar un dominio. El re
 6. Reinicia/despliega el backend y prueba solicitar y verificar un código usando una cuenta de correo controlada. Los códigos vencen en 10 minutos; se permiten tres envíos cada 15 minutos y hasta cinco intentos de verificación.
 7. Desde el panel de administración, agrega el correo correcto a cada cliente que ya existía antes de esta migración. El correo asociado a un cliente existente no se cambia durante una reserva; así, conocer su DNI no permite reemplazar la dirección usada para recuperar el acceso. Un correo solo puede estar asociado a un cliente.
 
-La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los enlaces/tokens de gestión anteriores y se entrega uno nuevo. Si falta cualquiera de las cuatro variables Gmail API, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
+La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los tokens anteriores y se emite uno nuevo por cada reserva. Si falta cualquiera de las cuatro variables Gmail API, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
 
 **Importante:** si la aplicación OAuth queda en estado **Testing**, Google puede hacer que los refresh tokens expiren a los 7 días. Para uso continuo, revisa el estado de publicación/consentimiento OAuth y la verificación que Google requiera para el scope sensible `gmail.send`; mientras tanto, puede ser necesario volver a autorizar y reemplazar el refresh token en Railway.
 

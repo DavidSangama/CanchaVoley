@@ -1,11 +1,10 @@
 package com.canchavoley.backend.service;
 
 import com.canchavoley.backend.model.Cliente;
-import com.canchavoley.backend.model.TokenGestionCliente;
 import com.canchavoley.backend.repository.CodigoRecuperacionRepository;
 import com.canchavoley.backend.repository.ClienteRepository;
-import com.canchavoley.backend.repository.ReservaRepository;
 import com.canchavoley.backend.repository.TokenGestionClienteRepository;
+import com.canchavoley.backend.dto.ReservaGestionTokenResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,13 +15,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
@@ -39,10 +39,10 @@ class CorreoRecuperacionServiceTest {
     private CodigoRecuperacionRepository codigoRepository;
 
     @Mock
-    private ReservaRepository reservaRepository;
+    private TokenGestionClienteRepository tokenRepository;
 
     @Mock
-    private TokenGestionClienteRepository tokenRepository;
+    private ReservaService reservaService;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -58,8 +58,8 @@ class CorreoRecuperacionServiceTest {
         correoRecuperacionService = new CorreoRecuperacionService(
                 clienteRepository,
                 codigoRepository,
-                reservaRepository,
                 tokenRepository,
+                reservaService,
                 passwordEncoder,
                 emailSender);
     }
@@ -111,22 +111,32 @@ class CorreoRecuperacionServiceTest {
     }
 
     @Test
-    void approvedCodeRevokesOldAccessAndReturnsANewToken() {
+    void approvedCodeRevokesOldAccessAndReturnsOneTokenForEachReservation() {
         Cliente cliente = cliente();
         when(clienteRepository.findByCorreoIgnoreCase("cliente@example.com")).thenReturn(Optional.of(cliente));
         when(codigoRepository.buscarParaActualizar(42L))
                 .thenReturn(Optional.of(new CodigoRecuperacionRepository.CodigoPendiente("bcrypt-code-hash", true, 0)));
         when(passwordEncoder.matches("123456", "bcrypt-code-hash")).thenReturn(true);
+        when(reservaService.generarTokensGestionCliente(42L))
+                .thenReturn(List.of(new ReservaGestionTokenResponse(
+                        7L,
+                        java.time.LocalDate.of(2026, 10, 10),
+                        1L,
+                        1,
+                        2L,
+                        "10:30",
+                        java.math.BigDecimal.valueOf(20),
+                        null,
+                        "reservation-one-token")));
 
         var response = correoRecuperacionService.verificarCodigo("cliente@example.com", "123456");
 
-        assertEquals(43, response.tokenGestion().length());
+        assertEquals(1, response.reservas().size());
+        assertEquals(7L, response.reservas().get(0).idReserva());
+        assertEquals("reservation-one-token", response.reservas().get(0).tokenGestion());
         verify(codigoRepository).eliminar(42L);
-        verify(reservaRepository).revocarTokensDeCliente(42L);
         verify(tokenRepository).deleteAllByClienteIdCliente(42L);
-        ArgumentCaptor<TokenGestionCliente> token = ArgumentCaptor.forClass(TokenGestionCliente.class);
-        verify(tokenRepository).save(token.capture());
-        assertEquals(TokenGestionUtils.hashToken(response.tokenGestion()), token.getValue().getTokenHash());
+        verify(reservaService).generarTokensGestionCliente(42L);
     }
 
     @Test
@@ -142,8 +152,7 @@ class CorreoRecuperacionServiceTest {
 
         assertEquals(401, error.getStatusCode().value());
         verify(codigoRepository).registrarIntentoFallido(42L);
-        verify(reservaRepository, never()).revocarTokensDeCliente(any());
-        verify(tokenRepository, never()).save(any());
+        verify(reservaService, never()).generarTokensGestionCliente(any());
     }
 
     @Test

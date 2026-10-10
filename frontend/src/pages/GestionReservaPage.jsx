@@ -5,7 +5,12 @@ import { Navbar } from '../components/Navbar';
 import { SelectEstilizado } from '../components/SelectEstilizado';
 import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
-import { guardarTokenGestion } from '../services/gestionReservaSession';
+import {
+  eliminarTokenGestionReserva,
+  guardarTokenGestion,
+  guardarTokensGestion,
+  obtenerTokensGestionReservas,
+} from '../services/gestionReservaSession';
 
 const ESTADOS_PAGO = {
   PENDIENTE_VERIFICACION: 'Pendiente de verificación',
@@ -23,6 +28,7 @@ export function GestionReservaPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const tokenGestion = location.hash.slice(1);
+  const [tokensGestion, setTokensGestion] = useState(obtenerTokensGestionReservas);
   const [reservas, setReservas] = useState([]);
   const [correoRecuperacion, setCorreoRecuperacion] = useState('');
   const [codigoRecuperacion, setCodigoRecuperacion] = useState('');
@@ -34,7 +40,9 @@ export function GestionReservaPage() {
   const [idHorarioSeleccionado, setIdHorarioSeleccionado] = useState('');
   const [horarios, setHorarios] = useState([]);
   const [horariosOcupados, setHorariosOcupados] = useState([]);
-  const [cargando, setCargando] = useState(Boolean(tokenGestion));
+  const [cargando, setCargando] = useState(
+    Boolean(tokenGestion) || Object.keys(obtenerTokensGestionReservas()).length > 0,
+  );
   const [cargandoDisponibilidad, setCargandoDisponibilidad] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
@@ -84,11 +92,32 @@ export function GestionReservaPage() {
         correoRecuperacion,
         codigo
       );
-      if (typeof respuesta?.tokenGestion !== 'string' || !respuesta.tokenGestion) {
+      if (!Array.isArray(respuesta?.reservas)
+        || respuesta.reservas.some((reserva) => (
+          !reserva?.idReserva
+          || typeof reserva.tokenGestion !== 'string'
+          || !reserva.tokenGestion
+        ))) {
         throw new Error('La verificación no devolvió el acceso privado.');
       }
-      guardarTokenGestion(respuesta.tokenGestion);
-      navigate(`/mis-reservas#${respuesta.tokenGestion}`);
+      const accesosGuardados = guardarTokensGestion(respuesta.reservas);
+      const nuevosTokens = Object.fromEntries(
+        respuesta.reservas.map((reserva) => [reserva.idReserva, reserva.tokenGestion]),
+      );
+      const listaHorarios = await HorarioService.obtenerTodos();
+      setTokensGestion(nuevosTokens);
+      setReservas(respuesta.reservas.map((reserva) => {
+        const reservaCliente = { ...reserva };
+        delete reservaCliente.tokenGestion;
+        return reservaCliente;
+      }));
+      setHorarios(listaHorarios);
+      setCargando(false);
+      setMensaje('Sesión iniciada. Ya puedes consultar y gestionar todas tus reservas.');
+      setError(accesosGuardados
+        ? ''
+        : 'Tus reservas están abiertas, pero no se pudieron guardar los accesos en esta pestaña. Evita recargarla y solicita un nuevo código si pierdes el acceso.');
+      navigate('/mis-reservas', { replace: true });
     } catch (err) {
       console.error('No se pudo verificar el código de recuperación por correo:', err);
       setError(err.status === 401
@@ -102,15 +131,30 @@ export function GestionReservaPage() {
   useEffect(() => {
     let cancelado = false;
 
-    if (!tokenGestion) return undefined;
+    const tokensGuardados = obtenerTokensGestionReservas();
+    const entradasToken = Object.entries(tokensGuardados);
+    if (!tokenGestion && entradasToken.length === 0) {
+      return undefined;
+    }
 
     Promise.all([
-      ReservaService.obtenerReservasCliente(tokenGestion),
+      entradasToken.length > 0
+        ? Promise.all(entradasToken.map(([idReserva, token]) => (
+          ReservaService.obtenerGestion(Number(idReserva), token)
+        )))
+        : ReservaService.obtenerReservasCliente(tokenGestion),
       HorarioService.obtenerTodos(),
     ])
       .then(([reservasCliente, listaHorarios]) => {
         if (cancelado) return;
         setReservas(reservasCliente);
+        const nuevosTokens = entradasToken.length > 0
+          ? tokensGuardados
+          : Object.fromEntries(reservasCliente.map((reserva) => [reserva.idReserva, tokenGestion]));
+        setTokensGestion(nuevosTokens);
+        if (entradasToken.length === 0 && reservasCliente.length > 0) {
+          guardarTokenGestion(reservasCliente[0].idReserva, tokenGestion);
+        }
         setHorarios(listaHorarios);
         setError('');
       })
@@ -163,6 +207,10 @@ export function GestionReservaPage() {
   }, [reservaSeleccionada, fechaSeleccionada]);
 
   const abrirGestion = (reserva) => {
+    if (!tokensGestion[reserva.idReserva]) {
+      setError('Vuelve a verificar el código enviado a tu correo para recuperar el acceso a esta reserva.');
+      return;
+    }
     setReservaSeleccionada(reserva);
     setFechaSeleccionada(reserva.fecha);
     setIdHorarioSeleccionado(String(reserva.idHorario));
@@ -191,7 +239,7 @@ export function GestionReservaPage() {
     try {
       const reservaActualizada = await ReservaService.reprogramarComoCliente(
         reservaSeleccionada.idReserva,
-        tokenGestion,
+        tokensGestion[reservaSeleccionada.idReserva],
         fechaSeleccionada,
         Number(idHorarioSeleccionado)
       );
@@ -217,10 +265,19 @@ export function GestionReservaPage() {
     setError('');
     setMensaje('');
     try {
-      await ReservaService.cancelarSolicitud(reservaSeleccionada.idReserva, tokenGestion);
+      await ReservaService.cancelarSolicitud(
+        reservaSeleccionada.idReserva,
+        tokensGestion[reservaSeleccionada.idReserva],
+      );
       setReservas((actuales) => actuales.filter(
         (reserva) => reserva.idReserva !== reservaSeleccionada.idReserva
       ));
+      eliminarTokenGestionReserva(reservaSeleccionada.idReserva);
+      setTokensGestion((actuales) => {
+        const siguientes = { ...actuales };
+        delete siguientes[reservaSeleccionada.idReserva];
+        return siguientes;
+      });
       setReservaSeleccionada(null);
       setMensaje('La reserva se canceló y el horario quedó disponible.');
     } catch (err) {
@@ -328,7 +385,11 @@ export function GestionReservaPage() {
             <div className="text-center">
               <h1 className="text-2xl font-bold text-slate-900 mb-3">No pudimos abrir este enlace</h1>
               <p className="text-red-700 mb-6" role="alert">{error}</p>
-              <Link to="/mis-reservas" className="mr-4 text-blue-700 font-semibold hover:underline">
+              <Link
+                to="/mis-reservas"
+                onClick={() => setError('')}
+                className="mr-4 text-blue-700 font-semibold hover:underline"
+              >
                 Recuperar acceso con mi correo
               </Link>
               <Link to="/" className="text-blue-700 font-semibold hover:underline">Volver al inicio</Link>

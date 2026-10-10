@@ -8,7 +8,7 @@ import com.canchavoley.backend.dto.ReservaGestionResponse;
 import com.canchavoley.backend.dto.ReprogramarReservaRequest;
 import com.canchavoley.backend.dto.RecuperacionCorreoResponse;
 import com.canchavoley.backend.dto.SolicitudRecuperacionCorreoRequest;
-import com.canchavoley.backend.dto.TokenGestionResponse;
+import com.canchavoley.backend.dto.AccesoReservasResponse;
 import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.dto.VerificarRecuperacionCorreoRequest;
 import com.canchavoley.backend.service.CorreoRecuperacionService;
@@ -91,7 +91,7 @@ public class ReservaController {
     }
 
     @PostMapping("/recuperacion-correo/verificar")
-    public ResponseEntity<TokenGestionResponse> verificarCodigoRecuperacionCorreo(
+    public ResponseEntity<AccesoReservasResponse> verificarCodigoRecuperacionCorreo(
             @RequestBody VerificarRecuperacionCorreoRequest solicitud) {
         return ResponseEntity.ok(correoRecuperacionService.verificarCodigo(
                 solicitud.correo(),

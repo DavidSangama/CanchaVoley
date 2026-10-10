@@ -3,9 +3,11 @@ package com.canchavoley.backend.service;
 import com.canchavoley.backend.model.EstadoPago;
 import com.canchavoley.backend.model.Pago;
 import com.canchavoley.backend.model.Reserva;
+import com.canchavoley.backend.model.Horario;
 import com.canchavoley.backend.dto.VaciadoDatosResponse;
 import com.canchavoley.backend.repository.PagoRepository;
 import com.canchavoley.backend.repository.ReservaRepository;
+import com.canchavoley.backend.repository.HorarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,9 @@ public class PagoService {
 
     @Autowired
     private ReservaRepository reservaRepository;
+
+    @Autowired
+    private HorarioRepository horarioRepository;
 
     @Autowired
     private ReiniciarIdentidadesService reiniciarIdentidadesService;
@@ -60,7 +65,9 @@ public class PagoService {
     // --- POSTs ---
     public Pago guardar(Pago pago) {
         pago.setEstado(EstadoPago.PENDIENTE_VERIFICACION);
-        return pagoRepository.save(resolverReserva(pago));
+        Pago pagoResuelto = resolverReserva(pago);
+        pagoResuelto.setTotal(pagoResuelto.getReserva().getPrecio());
+        return pagoRepository.save(pagoResuelto);
     }
 
     public List<Pago> guardarVarios(List<Pago> pagos) {
@@ -72,10 +79,15 @@ public class PagoService {
     }
 
     // --- PUTs ---
+    @Transactional
     public Pago actualizar(Long id, Pago detalles) {
         Pago pago = pagoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + id));
-        pago.setReserva(resolverReserva(detalles).getReserva());
+        Pago detallesResueltos = resolverReserva(detalles);
+        bloquearHorarios(
+                pago.getReserva().getHorario().getIdHorario(),
+                detallesResueltos.getReserva().getHorario().getIdHorario());
+        pago.setReserva(detallesResueltos.getReserva());
         pago.setTotal(detalles.getTotal());
         if (detalles.getEstado() != null) {
             pago.setEstado(detalles.getEstado());
@@ -90,9 +102,11 @@ public class PagoService {
         return pagoRepository.save(pago);
     }
 
+    @Transactional
     public Pago actualizarEstado(Long id, EstadoPago nuevoEstado) {
         Pago pago = pagoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + id));
+        bloquearHorarios(pago.getReserva().getHorario().getIdHorario());
         pago.setEstado(nuevoEstado);
         return pagoRepository.save(pago);
     }
@@ -102,7 +116,23 @@ public class PagoService {
         if (nuevoEstado == null) {
             throw new IllegalArgumentException("Selecciona un estado de pago válido.");
         }
-        return pagoRepository.actualizarEstadoDeTodos(nuevoEstado);
+        List<Pago> pagos = pagoRepository.findAll();
+        pagos.stream()
+                .map(pago -> pago.getReserva().getHorario().getIdHorario())
+                .distinct()
+                .sorted()
+                .forEach(this::bloquearHorarios);
+        pagos.forEach(pago -> pago.setEstado(nuevoEstado));
+        pagoRepository.saveAll(pagos);
+        return pagos.size();
+    }
+
+    private void bloquearHorarios(Long... idsHorario) {
+        java.util.Arrays.stream(idsHorario)
+                .distinct()
+                .sorted()
+                .forEach(idHorario -> horarioRepository.findByIdForUpdate(idHorario)
+                        .orElseThrow(() -> new RuntimeException("Horario no encontrado con id: " + idHorario)));
     }
 
     @Transactional

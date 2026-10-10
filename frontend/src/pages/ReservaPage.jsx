@@ -6,7 +6,10 @@ import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
 import { ClienteService } from '../services/ClienteService';
 import { PagoService } from '../services/PagoService';
-import { guardarTokenGestion } from '../services/gestionReservaSession';
+import {
+  eliminarTokenGestionReserva,
+  guardarTokenGestion,
+} from '../services/gestionReservaSession';
 import { esHorarioPasado } from '../utils/horarios';
 import '../styles/ReservaPage.css';
 
@@ -349,7 +352,7 @@ export function ReservaPage() {
         return;
       }
 
-      guardarTokenGestion(nuevaReserva.tokenGestion);
+      guardarTokenGestion(nuevaReserva.idReserva, nuevaReserva.tokenGestion);
 
       // 3. Registrar el pago
       operacion = 'registrar el pago';
@@ -428,6 +431,7 @@ export function ReservaPage() {
         datosConfirmacion.idReserva,
         datosConfirmacion.tokenGestion
       );
+      eliminarTokenGestionReserva(datosConfirmacion.idReserva);
       eliminarBorradorReserva();
       setSolicitudCancelada(true);
     } catch (error) {
