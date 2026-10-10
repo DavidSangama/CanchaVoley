@@ -27,7 +27,8 @@ Aplicación web para consultar canchas y horarios, realizar reservas de vóley y
 
 - Consulta de canchas, horarios y precios desde el backend.
 - Flujo de reserva en línea: selección de fecha, cancha y horario, ingreso de datos y envío de la solicitud.
-- Consulta y gestión de reservas del cliente mediante un token privado.
+- Consulta y gestión de reservas del cliente mediante un token privado, tanto al crear una reserva como al recuperar el acceso por correo.
+- Recuperación de acceso mediante un código de un solo uso enviado al correo asociado al cliente.
 - Panel de administración para gestionar reservas, canchas, clientes, horarios y pagos.
 - Autenticación para las operaciones administrativas.
 - Persistencia de los datos en PostgreSQL.
@@ -47,7 +48,18 @@ API REST / Spring Boot (Railway)
 PostgreSQL (Neon)
 ```
 
-Los datos comerciales y las reservas se solicitan a la API; los borradores del formulario y el token de gestión del cliente se conservan temporalmente en `sessionStorage`. Los clientes nuevos registran un correo electrónico para poder recuperar el acceso a sus reservas; el correo de clientes ya existentes se agrega desde el panel administrativo.
+Los datos comerciales y las reservas se solicitan a la API; los borradores del formulario y el token de gestión del cliente se conservan temporalmente en `sessionStorage`.
+
+### Acceso del cliente a sus reservas
+
+El acceso del cliente no usa una contraseña ni una sesión de autenticación tradicional: se autoriza con un token privado de gestión de reservas.
+
+- Al confirmar una reserva, el backend devuelve un token y el frontend lo guarda en `sessionStorage`.
+- Si el cliente vuelve a la página de inicio en la misma pestaña, el enlace **Mis reservas** conserva ese acceso durante la sesión de la pestaña.
+- Si no tiene el token, el cliente puede solicitar un código de recuperación al correo asociado a su cuenta. Al verificarlo, el backend entrega un token nuevo, que también queda guardado en `sessionStorage`; los tokens de gestión anteriores quedan revocados.
+- Las operaciones privadas de consulta envían el token en la cabecera `X-Reservation-Token`. La página **Mis reservas** también acepta el token en el fragmento de la URL (`/mis-reservas#<token>`) para abrir el enlace directamente. Trata ese enlace como una credencial privada y no lo compartas. El guardado automático en `sessionStorage` es por pestaña; si no tienes el acceso guardado, puedes recuperarlo nuevamente por correo.
+
+Para una cuenta nueva, el correo se registra al crear la primera reserva. Para clientes ya existentes, el administrador debe agregar o corregir el correo desde el panel administrativo. El sistema no reemplaza el correo de una cuenta existente al reservar usando su DNI.
 
 ## Requisitos para ejecutar localmente
 
@@ -161,6 +173,17 @@ Para la prueba de aceptación desplegada, valida el flujo de crear, listar, edit
 | Autenticación administrativa | `/api/admin/authenticate` |
 
 La API usa JSON. Las operaciones de escritura utilizan los métodos HTTP correspondientes (`POST`, `PUT`, `PATCH` y `DELETE`); las rutas exactas y sus parámetros se definen en los controladores del backend.
+
+Rutas relevantes para recuperar y gestionar las reservas de un cliente:
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/reservas/recuperacion-correo` | Solicita el envío de un código al correo indicado. La respuesta es genérica para no revelar si el correo está registrado. |
+| `POST` | `/api/reservas/recuperacion-correo/verificar` | Verifica el correo y el código de seis dígitos; devuelve un token privado de gestión. |
+| `GET` | `/api/reservas/gestion/cliente` | Devuelve las reservas asociadas al token privado enviado en `X-Reservation-Token`. |
+| `GET` | `/api/reservas/{id}/gestion` | Devuelve la gestión de una reserva; requiere el token privado en `X-Reservation-Token`. |
+| `PATCH` | `/api/reservas/{id}/gestion` | Permite reprogramar una reserva; recibe `tokenCancelacion`, `fecha` e `idHorario` en el cuerpo JSON. |
+| `POST` | `/api/reservas/{id}/cancelar` | Permite solicitar la cancelación; recibe `tokenCancelacion` en el cuerpo JSON. |
 
 ### Activar recuperación por correo con Gmail API
 
