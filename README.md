@@ -68,8 +68,10 @@ Desde la carpeta `backend`, define las variables de entorno para conectarte a Po
 | `DB_PASSWORD` | Contraseña de PostgreSQL | Definir localmente; no subirla al repositorio |
 | `ADMIN_USERNAME` | Usuario del panel administrativo | `admin` |
 | `ADMIN_PASSWORD` | Contraseña del panel; mínimo 12 caracteres | Definir localmente; no subirla al repositorio |
-| `RESEND_API_KEY` | Clave secreta de la API de Resend | Definir como secreto |
-| `RESEND_FROM_EMAIL` | Remitente autorizado en Resend | `CanchaVoley <reservas@tu-dominio-verificado.com>` |
+| `GMAIL_OAUTH_CLIENT_ID` | ID del cliente OAuth de Google Cloud | Definir como secreto |
+| `GMAIL_OAUTH_CLIENT_SECRET` | Secreto del cliente OAuth de Google Cloud | Definir como secreto |
+| `GMAIL_OAUTH_REFRESH_TOKEN` | Token de actualización OAuth con permiso `gmail.send` | Definir como secreto |
+| `GMAIL_API_FROM_EMAIL` | Gmail autorizado como remitente | `canchavoleyservice@gmail.com` |
 | `PORT` | Puerto HTTP del backend (opcional) | `6767` |
 | `FRONTEND_URL` | Origen permitido por CORS (opcional) | `http://localhost:5173` |
 
@@ -160,27 +162,34 @@ Para la prueba de aceptación desplegada, valida el flujo de crear, listar, edit
 
 La API usa JSON. Las operaciones de escritura utilizan los métodos HTTP correspondientes (`POST`, `PUT`, `PATCH` y `DELETE`); las rutas exactas y sus parámetros se definen en los controladores del backend.
 
-### Activar recuperación por correo con Resend
+### Activar recuperación por correo con Gmail API
 
-1. Crea una cuenta en Resend y genera una API key. Guárdala como secreto `RESEND_API_KEY` en las variables del backend; nunca la pongas en el frontend, el repositorio ni el chat.
-2. Para enviar códigos a cualquier cliente, agrega y verifica en Resend un dominio que controles y configura los registros DNS que Resend indique. Define `RESEND_FROM_EMAIL` usando una dirección de ese dominio verificado. El remitente de prueba de Resend sirve solo para probar con la dirección permitida por Resend, no para enviar a todos los clientes.
-3. Ejecuta la migración de correo indicada en la sección de ejecución local, conectándote a la misma base de datos que utilizará el backend, si aún no se ha aplicado.
-4. Para desarrollo local en PowerShell, define las variables en la terminal antes de iniciar el backend:
+La Gmail API permite mandar desde una cuenta Gmail sin comprar un dominio. El remitente debe ser la cuenta autorizada en Google OAuth. El backend solicita access tokens usando el refresh token guardado en Railway y no guarda ni registra esos tokens temporales.
+
+1. En Google Cloud Console, crea un proyecto, habilita **Gmail API** y configura la pantalla de consentimiento OAuth como aplicación **External**. Agrega `https://www.googleapis.com/auth/gmail.send` como único scope y agrega `canchavoleyservice@gmail.com` como usuario de prueba.
+2. Crea un cliente OAuth de tipo **Web application** y agrega `https://developers.google.com/oauthplayground` como URI de redirección autorizada. Conserva su Client ID y Client Secret; no los pegues en el chat ni en Git.
+3. En OAuth 2.0 Playground (`https://developers.google.com/oauthplayground`), abre los ajustes con el ícono de engranaje, marca **Use your own OAuth credentials** y coloca allí ese Client ID y Client Secret. En el paso 1 solicita únicamente el scope `https://www.googleapis.com/auth/gmail.send`, autoriza con `canchavoleyservice@gmail.com` y acepta el permiso de envío. En el paso 2 intercambia el código; copia el **refresh token** mostrado y guárdalo como secreto. Nunca compartas el refresh token.
+4. En Railway, configura `GMAIL_OAUTH_CLIENT_ID`, `GMAIL_OAUTH_CLIENT_SECRET` y `GMAIL_OAUTH_REFRESH_TOKEN` como secretos. Define `GMAIL_API_FROM_EMAIL` con `canchavoleyservice@gmail.com`.
+5. Para desarrollo local en PowerShell, define las variables en la terminal antes de iniciar el backend:
 
    ```powershell
-   $env:RESEND_API_KEY = "re_xxxxxxxxx"
-   $env:RESEND_FROM_EMAIL = "CanchaVoley <reservas@tu-dominio-verificado.com>"
+   $env:GMAIL_OAUTH_CLIENT_ID = "tu-client-id"
+   $env:GMAIL_OAUTH_CLIENT_SECRET = "tu-client-secret"
+   $env:GMAIL_OAUTH_REFRESH_TOKEN = "tu-refresh-token"
+   $env:GMAIL_API_FROM_EMAIL = "canchavoleyservice@gmail.com"
    .\mvnw.cmd spring-boot:run
    ```
 
-5. Reinicia/despliega el backend y prueba solicitar y verificar un código usando una cuenta de correo controlada. Los códigos vencen en 10 minutos; se permiten tres envíos cada 15 minutos y hasta cinco intentos de verificación.
-6. Desde el panel de administración, agrega el correo correcto a cada cliente que ya existía antes de esta migración. El correo asociado a un cliente existente no se cambia durante una reserva; así, conocer su DNI no permite reemplazar la dirección usada para recuperar el acceso. Un correo solo puede estar asociado a un cliente.
+6. Reinicia/despliega el backend y prueba solicitar y verificar un código usando una cuenta de correo controlada. Los códigos vencen en 10 minutos; se permiten tres envíos cada 15 minutos y hasta cinco intentos de verificación.
+7. Desde el panel de administración, agrega el correo correcto a cada cliente que ya existía antes de esta migración. El correo asociado a un cliente existente no se cambia durante una reserva; así, conocer su DNI no permite reemplazar la dirección usada para recuperar el acceso. Un correo solo puede estar asociado a un cliente.
 
-La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los enlaces/tokens de gestión anteriores y se entrega uno nuevo. Si falta `RESEND_API_KEY` o `RESEND_FROM_EMAIL`, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
+La solicitud devuelve un mensaje genérico tanto si el correo está registrado como si no. El código se almacena hasheado, es de un solo uso y, al verificarlo, se revocan los enlaces/tokens de gestión anteriores y se entrega uno nuevo. Si falta cualquiera de las cuatro variables Gmail API, la aplicación inicia normalmente, pero la recuperación devuelve `503` hasta que se configure el correo.
+
+**Importante:** si la aplicación OAuth queda en estado **Testing**, Google puede hacer que los refresh tokens expiren a los 7 días. Para uso continuo, revisa el estado de publicación/consentimiento OAuth y la verificación que Google requiera para el scope sensible `gmail.send`; mientras tanto, puede ser necesario volver a autorizar y reemplazar el refresh token en Railway.
 
 ## Seguridad y configuración
 
 - No publiques contraseñas, tokens ni archivos de entorno con valores secretos.
 - `VITE_API_URL` es una variable de configuración del frontend y queda incorporada al bundle al construirlo; no debe contener secretos.
-- En producción, define `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `PORT` y `FRONTEND_URL` en la configuración del servicio de backend. Configura `RESEND_API_KEY` como secreto y `RESEND_FROM_EMAIL` como variable de configuración para activar la recuperación por correo.
+- En producción, define `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `PORT` y `FRONTEND_URL` en la configuración del servicio de backend. Configura las tres credenciales OAuth Gmail como secretos y `GMAIL_API_FROM_EMAIL` como variable de configuración para activar la recuperación por correo.
 - Para CORS, revisa los orígenes permitidos en `backend/src/main/java/com/canchavoley/backend/config/CorsConfig.java`.

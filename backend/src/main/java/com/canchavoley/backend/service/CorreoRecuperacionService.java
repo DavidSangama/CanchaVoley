@@ -39,7 +39,7 @@ public class CorreoRecuperacionService {
     private final ReservaRepository reservaRepository;
     private final TokenGestionClienteRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
-    private final ResendEmailSender emailSender;
+    private final GmailApiEmailSender emailSender;
 
     public CorreoRecuperacionService(
             ClienteRepository clienteRepository,
@@ -47,7 +47,7 @@ public class CorreoRecuperacionService {
             ReservaRepository reservaRepository,
             TokenGestionClienteRepository tokenRepository,
             PasswordEncoder passwordEncoder,
-            ResendEmailSender emailSender) {
+            GmailApiEmailSender emailSender) {
         this.clienteRepository = clienteRepository;
         this.codigoRepository = codigoRepository;
         this.reservaRepository = reservaRepository;
@@ -117,9 +117,9 @@ public class CorreoRecuperacionService {
 
                     El código vence en 10 minutos. Si no solicitaste este código, puedes ignorar este mensaje.
                     """.formatted(codigo));
-        } catch (ResendEmailSender.DeliveryException error) {
+        } catch (GmailApiEmailSender.DeliveryException error) {
             LOGGER.error(
-                    "No se pudo enviar un código de recuperación por correo. Diagnóstico Resend: {}",
+                    "No se pudo enviar un código de recuperación por correo. Diagnóstico Gmail API: {}",
                     diagnosticoSeguro(error));
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
@@ -146,9 +146,11 @@ public class CorreoRecuperacionService {
     }
 
     static String diagnosticoSeguro(Throwable error) {
-        if (error instanceof ResendEmailSender.DeliveryException resendError
-                && resendError.statusCode() != null) {
-            return "Resend respondió HTTP " + resendError.statusCode();
+        if (error instanceof GmailApiEmailSender.DeliveryException gmailError
+                && gmailError.statusCode() != null) {
+            return (gmailError.stage() == GmailApiEmailSender.Stage.OAUTH
+                    ? "Google OAuth"
+                    : "Gmail API") + " respondió HTTP " + gmailError.statusCode();
         }
 
         StringBuilder tipos = new StringBuilder();
@@ -172,7 +174,7 @@ public class CorreoRecuperacionService {
             profundidad++;
         }
 
-        String categoria = falloConexion ? "conexión con Resend fallida" : "error del proveedor Resend";
+        String categoria = falloConexion ? "conexión con Gmail API fallida" : "error de Gmail API";
         return categoria + " (" + tipos + ")";
     }
 

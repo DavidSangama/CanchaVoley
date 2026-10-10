@@ -48,7 +48,7 @@ class CorreoRecuperacionServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private ResendEmailSender emailSender;
+    private GmailApiEmailSender emailSender;
 
     private CorreoRecuperacionService correoRecuperacionService;
 
@@ -147,14 +147,15 @@ class CorreoRecuperacionServiceTest {
     }
 
     @Test
-    void resendDiagnosticsIncludeStatusWithoutLoggingResponseBodies() {
+    void gmailDiagnosticsIncludeStatusWithoutLoggingResponseBodies() {
         String diagnostico = CorreoRecuperacionService.diagnosticoSeguro(
-                new ResendEmailSender.DeliveryException(
+                new GmailApiEmailSender.DeliveryException(
                         "sensitive provider response",
+                        GmailApiEmailSender.Stage.OAUTH,
                         401,
                         new IllegalStateException("sensitive provider response")));
 
-        assertEquals("Resend respondió HTTP 401", diagnostico);
+        assertEquals("Google OAuth respondió HTTP 401", diagnostico);
         assertFalse(diagnostico.contains("sensitive"));
     }
 
