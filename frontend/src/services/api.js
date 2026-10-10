@@ -1,5 +1,4 @@
-// Agrega esta línea si no está:
-const BASE_URL = import.meta.env.VITE_API_URL;
+const BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 export const ADMIN_AUTHORIZATION_KEY = "admin_authorization";
 
 const crearAutorizacionBasica = (usuario, clave) => {
@@ -18,23 +17,42 @@ export const iniciarSesionAdmin = async (usuario, clave) => {
 
 export const fetchAPI = async (endpoint, options = {}) => {
   try {
+    if (!BASE_URL) {
+      throw new Error("Falta configurar VITE_API_URL para conectar con el backend.");
+    }
+
+    const authorization = sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY);
     const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
-        ...(sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY)
-          ? { Authorization: sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY) }
-          : {}),
+        ...(authorization ? { Authorization: authorization } : {}),
         ...options.headers,
       },
-      ...options,
     });
+
+    const texto = await response.text();
+    let respuesta = null;
+    if (texto) {
+      try {
+        respuesta = JSON.parse(texto);
+      } catch {
+        respuesta = texto;
+      }
+    }
 
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
       }
-      const error = new Error(`Error ${response.status}: ${response.statusText}`);
+      const detalle = typeof respuesta === "string"
+        ? respuesta
+        : respuesta?.detail ?? respuesta?.message ?? respuesta?.error;
+      const error = new Error(
+        `Error ${response.status}${detalle ? `: ${detalle}` : `: ${response.statusText}`}`,
+      );
       error.status = response.status;
+      error.body = respuesta;
       throw error;
     }
 
@@ -42,7 +60,6 @@ export const fetchAPI = async (endpoint, options = {}) => {
       return null;
     }
 
-    const texto = await response.text();
     return texto ? JSON.parse(texto) : null;
   } catch (error) {
     console.error("Error en la petición API:", error);

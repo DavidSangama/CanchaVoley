@@ -302,6 +302,7 @@ export function ReservaPage() {
   const confirmarReserva = async () => {
     setEnviandoReserva(true);
     setErrorEnvio(null);
+    let operacion = 'buscar el cliente';
 
     try {
       // 1. Buscar si el cliente ya existe por DNI; si no, crearlo
@@ -322,6 +323,7 @@ export function ReservaPage() {
           setPasoActual(3);
           return;
         }
+        operacion = 'registrar el cliente';
         const nuevoCliente = await ClienteService.registrar({
           nombre: datosCliente.nombre.trim(),
           apellido: datosCliente.apellido.trim(),
@@ -333,6 +335,7 @@ export function ReservaPage() {
       }
 
       // 2. Crear la reserva
+      operacion = 'crear la reserva';
       const nuevaReserva = await ReservaService.crear({
         cliente: { idCliente: idClienteFinal },
         cancha: { idCancha: canchaSeleccionada },
@@ -349,6 +352,7 @@ export function ReservaPage() {
       guardarTokenGestion(nuevaReserva.tokenGestion);
 
       // 3. Registrar el pago
+      operacion = 'registrar el pago';
       await PagoService.procesar({
         reserva: { idReserva: nuevaReserva.idReserva },
         total: horarioSeleccionado.precio,
@@ -366,7 +370,14 @@ export function ReservaPage() {
       setReservaConfirmada(true);
     } catch (err) {
       console.error('Error al confirmar la reserva:', err);
-      setErrorEnvio('No se pudo confirmar la reserva. Es posible que ese horario ya haya sido tomado por otra persona. Vuelve al paso 2 y elige otro horario.');
+      if (operacion === 'registrar el pago') {
+        setErrorEnvio('La reserva se creó, pero no se pudo registrar el pago. No vuelvas a enviar la reserva y contacta al administrador para verificarla.');
+      } else if (err.status === 409) {
+        setErrorEnvio('Ese horario ya no está disponible. Vuelve al paso 2 y elige otro horario.');
+      } else {
+        const estado = err.status ? ` (HTTP ${err.status})` : '';
+        setErrorEnvio(`No se pudo ${operacion}${estado}. Revisa los datos e inténtalo de nuevo.`);
+      }
     } finally {
       setEnviandoReserva(false);
     }
