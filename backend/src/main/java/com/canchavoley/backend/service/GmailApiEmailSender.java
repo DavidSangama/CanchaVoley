@@ -2,6 +2,7 @@ package com.canchavoley.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,7 @@ public class GmailApiEmailSender {
     private final URI tokenUri;
     private final URI emailsUri;
 
+    @Autowired
     public GmailApiEmailSender(
             @Value("${GMAIL_OAUTH_CLIENT_ID:}") String clientId,
             @Value("${GMAIL_OAUTH_CLIENT_SECRET:}") String clientSecret,
