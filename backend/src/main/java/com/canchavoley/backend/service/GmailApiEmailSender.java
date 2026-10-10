@@ -2,7 +2,6 @@ package com.canchavoley.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -22,9 +21,9 @@ public class GmailApiEmailSender {
 
     private static final URI TOKEN_URI = URI.create("https://oauth2.googleapis.com/token");
     private static final URI EMAILS_URI = URI.create("https://gmail.googleapis.com/gmail/v1/users/me/messages/send");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
     private final String clientId;
     private final String clientSecret;
     private final String refreshToken;
@@ -32,16 +31,13 @@ public class GmailApiEmailSender {
     private final URI tokenUri;
     private final URI emailsUri;
 
-    @Autowired
     public GmailApiEmailSender(
-            ObjectMapper objectMapper,
             @Value("${GMAIL_OAUTH_CLIENT_ID:}") String clientId,
             @Value("${GMAIL_OAUTH_CLIENT_SECRET:}") String clientSecret,
             @Value("${GMAIL_OAUTH_REFRESH_TOKEN:}") String refreshToken,
             @Value("${GMAIL_API_FROM_EMAIL:}") String fromEmail) {
         this(
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build(),
-                objectMapper,
                 clientId,
                 clientSecret,
                 refreshToken,
@@ -52,7 +48,6 @@ public class GmailApiEmailSender {
 
     GmailApiEmailSender(
             HttpClient httpClient,
-            ObjectMapper objectMapper,
             String clientId,
             String clientSecret,
             String refreshToken,
@@ -60,7 +55,6 @@ public class GmailApiEmailSender {
             URI tokenUri,
             URI emailsUri) {
         this.httpClient = httpClient;
-        this.objectMapper = objectMapper;
         this.clientId = clean(clientId);
         this.clientSecret = clean(clientSecret);
         this.refreshToken = clean(refreshToken);
@@ -80,7 +74,7 @@ public class GmailApiEmailSender {
         String accessToken = obtenerAccessToken();
         String rawMessage = crearMensajeMime(destinatario, asunto, texto);
         try {
-            String body = objectMapper.writeValueAsString(Map.of("raw", rawMessage));
+            String body = OBJECT_MAPPER.writeValueAsString(Map.of("raw", rawMessage));
             HttpRequest request = HttpRequest.newBuilder(emailsUri)
                     .timeout(Duration.ofSeconds(10))
                     .header("Authorization", "Bearer " + accessToken)
@@ -114,7 +108,7 @@ public class GmailApiEmailSender {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new DeliveryException("Google OAuth rechazó el token.", Stage.OAUTH, response.statusCode(), null);
             }
-            JsonNode accessToken = objectMapper.readTree(response.body()).get("access_token");
+            JsonNode accessToken = OBJECT_MAPPER.readTree(response.body()).get("access_token");
             if (accessToken == null || !accessToken.isTextual() || accessToken.asText().isBlank()) {
                 throw new DeliveryException("Google OAuth no devolvió un token de acceso.", Stage.OAUTH, null, null);
             }

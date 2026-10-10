@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GmailApiEmailSenderTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
     void refreshesOauthTokenAndSendsMimeMessageThroughGmailApi() throws Exception {
@@ -37,7 +37,7 @@ class GmailApiEmailSenderTest {
         });
         server.createContext("/send", exchange -> {
             authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
-            JsonNode requestBody = objectMapper.readTree(exchange.getRequestBody());
+            JsonNode requestBody = OBJECT_MAPPER.readTree(exchange.getRequestBody());
             rawMessage.set(requestBody.get("raw").asText());
             exchange.sendResponseHeaders(200, -1);
             exchange.close();
@@ -101,8 +101,7 @@ class GmailApiEmailSenderTest {
         int port = server.getAddress().getPort();
         return new GmailApiEmailSender(
                 HttpClient.newHttpClient(),
-                objectMapper,
-                "client-id",
+                    "client-id",
                 "client-secret",
                 "refresh-token",
                 "canchavoleyservice@gmail.com",
