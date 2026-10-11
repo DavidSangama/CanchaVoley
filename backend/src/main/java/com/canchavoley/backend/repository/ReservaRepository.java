@@ -26,7 +26,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
             FROM renta_cancha.reserva r
             LEFT JOIN renta_cancha.pago p ON p.id_reserva = r.id_reserva
             WHERE r.fecha = :fecha
-              AND (p.id_pago IS NULL OR p.estado = 'PENDIENTE_VERIFICACION')
+              AND (p.id_pago IS NULL OR p.estado IS DISTINCT FROM 'CANCELADO')
             """, nativeQuery = true)
     List<Reserva> findOcupadasByFecha(@Param("fecha") LocalDate fecha);
 
@@ -46,7 +46,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
                   AND r.id_cancha = :idCancha
                   AND r.id_horario = :idHorario
                   AND (CAST(:idReservaExcluida AS BIGINT) IS NULL OR r.id_reserva <> :idReservaExcluida)
-                  AND (p.id_pago IS NULL OR p.estado = 'PENDIENTE_VERIFICACION')
+                  AND (p.id_pago IS NULL OR p.estado IS DISTINCT FROM 'CANCELADO')
             )
             """, nativeQuery = true)
     boolean existsOcupada(

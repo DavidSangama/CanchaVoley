@@ -27,7 +27,7 @@ Aplicación web para consultar canchas y horarios, realizar reservas de vóley y
 
 - Consulta de canchas, horarios y precios desde el backend.
 - Flujo de reserva en línea: selección de fecha, cancha y horario, ingreso de datos y envío de la solicitud.
-- Los pagos pendientes bloquean el horario; los pagos cancelados o confirmados lo liberan. Cada reserva conserva su precio histórico cuando cambia la tarifa del horario.
+- Las reservas sin pago, con pago pendiente de verificación o con pago confirmado bloquean el horario; solo las reservas con pago cancelado lo liberan. Cada reserva conserva su precio histórico cuando cambia la tarifa del horario.
 - Consulta y gestión de reservas del cliente mediante un token privado, tanto al crear una reserva como al recuperar el acceso por correo.
 - Recuperación de acceso mediante un código de un solo uso enviado al correo asociado al cliente.
 - Panel de administración para gestionar reservas, canchas, clientes, horarios y pagos.
@@ -133,7 +133,7 @@ Antes de desplegar la gestión con tokens individuales, aplica también [`202610
 psql -h <host> -p <puerto> -U <usuario> -d <base> -v ON_ERROR_STOP=1 -f backend/sql/20261010_add_unique_reservation_management_tokens.sql
 ```
 
-Aplica además [`20261010_release_cancelled_and_confirmed_slots.sql`](./backend/sql/20261010_release_cancelled_and_confirmed_slots.sql) antes de desplegar la liberación de horarios y la conservación del precio de cada reserva. La migración agrega el precio histórico a las reservas, lo inicializa con el total del pago existente cuando lo hay y elimina la restricción que impedía volver a reservar un horario liberado:
+Aplica además [`20261010_release_cancelled_and_confirmed_slots.sql`](./backend/sql/20261010_release_cancelled_and_confirmed_slots.sql) antes de desplegar la liberación de horarios cancelados y la conservación del precio de cada reserva. La migración agrega el precio histórico a las reservas, lo inicializa con el total del pago existente cuando lo hay y elimina la restricción que impedía volver a reservar un horario liberado:
 
 ```powershell
 psql -h <host> -p <puerto> -U <usuario> -d <base> -v ON_ERROR_STOP=1 -f backend/sql/20261010_release_cancelled_and_confirmed_slots.sql
