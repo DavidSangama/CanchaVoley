@@ -57,8 +57,9 @@ El acceso del cliente no usa una contraseña ni una sesión de autenticación tr
 
 - Al confirmar una reserva, el backend devuelve su token único y el frontend lo guarda en `sessionStorage`.
 - Si el cliente vuelve a la página de inicio en la misma pestaña, el enlace **Mis reservas** conserva los tokens de sus reservas durante la sesión.
-- Si no tiene esos tokens, puede solicitar un código de recuperación al correo asociado a su cuenta. Al verificarlo, el backend genera un token único nuevo para cada reserva del cliente; los tokens anteriores quedan revocados y se guardan los nuevos en `sessionStorage`.
+- Si no tiene esos tokens, puede solicitar un código de recuperación al correo asociado a su cuenta. Al verificarlo, el backend genera un token único nuevo para cada reserva registrada del cliente; los tokens anteriores quedan revocados y se guardan los nuevos en `sessionStorage`.
 - Las operaciones privadas envían el token en la cabecera `X-Reservation-Token` y cada token permite consultar, cancelar o reprogramar únicamente su reserva. La página **Mis reservas** también acepta un token en el fragmento de la URL (`/mis-reservas#<token>`) para abrir esa reserva directamente. Trata ese enlace como una credencial privada y no lo compartas. El guardado automático en `sessionStorage` es por pestaña; si no tienes los accesos guardados, puedes recuperarlos nuevamente por correo.
+- Las cancelaciones de solicitudes pendientes se conservan en el historial con estado **Pago cancelado**; liberan el horario sin borrar la reserva.
 
 Para una cuenta nueva, el correo se registra al crear la primera reserva. Para clientes ya existentes, el administrador debe agregar o corregir el correo desde el panel administrativo. El sistema no reemplaza el correo de una cuenta existente al reservar usando su DNI.
 

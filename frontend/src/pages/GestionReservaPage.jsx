@@ -6,7 +6,6 @@ import { SelectEstilizado } from '../components/SelectEstilizado';
 import { HorarioService } from '../services/HorarioService';
 import { ReservaService } from '../services/ReservaService';
 import {
-  eliminarTokenGestionReserva,
   guardarTokenGestion,
   guardarTokensGestion,
   obtenerTokensGestionReservas,
@@ -29,6 +28,9 @@ export function GestionReservaPage() {
   const navigate = useNavigate();
   const tokenGestion = location.hash.slice(1);
   const [tokensGestion, setTokensGestion] = useState(obtenerTokensGestionReservas);
+  const [sesionClienteIniciada, setSesionClienteIniciada] = useState(
+    () => Object.keys(obtenerTokensGestionReservas()).length > 0,
+  );
   const [reservas, setReservas] = useState([]);
   const [correoRecuperacion, setCorreoRecuperacion] = useState('');
   const [codigoRecuperacion, setCodigoRecuperacion] = useState('');
@@ -104,20 +106,26 @@ export function GestionReservaPage() {
       const nuevosTokens = Object.fromEntries(
         respuesta.reservas.map((reserva) => [reserva.idReserva, reserva.tokenGestion]),
       );
-      const listaHorarios = await HorarioService.obtenerTodos();
-      setTokensGestion(nuevosTokens);
-      setReservas(respuesta.reservas.map((reserva) => {
+      const reservasCliente = respuesta.reservas.map((reserva) => {
         const reservaCliente = { ...reserva };
         delete reservaCliente.tokenGestion;
         return reservaCliente;
-      }));
-      setHorarios(listaHorarios);
+      });
+      setTokensGestion(nuevosTokens);
+      setSesionClienteIniciada(true);
+      setReservas(reservasCliente);
       setCargando(false);
       setMensaje('Sesión iniciada. Ya puedes consultar y gestionar todas tus reservas.');
       setError(accesosGuardados
         ? ''
         : 'Tus reservas están abiertas, pero no se pudieron guardar los accesos en esta pestaña. Evita recargarla y solicita un nuevo código si pierdes el acceso.');
       navigate('/mis-reservas', { replace: true });
+      HorarioService.obtenerTodos()
+        .then(setHorarios)
+        .catch((err) => {
+          console.error('No se pudieron cargar los horarios para reprogramar reservas:', err);
+          setError('Tus reservas están abiertas, pero no se pudieron cargar los horarios para reprogramar.');
+        });
     } catch (err) {
       console.error('No se pudo verificar el código de recuperación por correo:', err);
       setError(err.status === 401
@@ -137,17 +145,17 @@ export function GestionReservaPage() {
       return undefined;
     }
 
-    Promise.all([
-      entradasToken.length > 0
-        ? Promise.all(entradasToken.map(([idReserva, token]) => (
-          ReservaService.obtenerGestion(Number(idReserva), token)
-        )))
-        : ReservaService.obtenerReservasCliente(tokenGestion),
-      HorarioService.obtenerTodos(),
-    ])
-      .then(([reservasCliente, listaHorarios]) => {
+    const cargarReservas = entradasToken.length > 0
+      ? Promise.all(entradasToken.map(([idReserva, token]) => (
+        ReservaService.obtenerGestion(Number(idReserva), token)
+      )))
+      : ReservaService.obtenerReservasCliente(tokenGestion);
+
+    cargarReservas
+      .then((reservasCliente) => {
         if (cancelado) return;
         setReservas(reservasCliente);
+        setSesionClienteIniciada(true);
         const nuevosTokens = entradasToken.length > 0
           ? tokensGuardados
           : Object.fromEntries(reservasCliente.map((reserva) => [reserva.idReserva, tokenGestion]));
@@ -155,7 +163,6 @@ export function GestionReservaPage() {
         if (entradasToken.length === 0 && reservasCliente.length > 0) {
           guardarTokenGestion(reservasCliente[0].idReserva, tokenGestion);
         }
-        setHorarios(listaHorarios);
         setError('');
       })
       .catch((err) => {
@@ -169,6 +176,14 @@ export function GestionReservaPage() {
       .finally(() => {
         if (!cancelado) setCargando(false);
       });
+
+      HorarioService.obtenerTodos()
+        .then((listaHorarios) => {
+          if (!cancelado) setHorarios(listaHorarios);
+        })
+        .catch((err) => {
+          console.error('No se pudieron cargar los horarios para reprogramar reservas:', err);
+        });
 
     return () => {
       cancelado = true;
@@ -269,17 +284,13 @@ export function GestionReservaPage() {
         reservaSeleccionada.idReserva,
         tokensGestion[reservaSeleccionada.idReserva],
       );
-      setReservas((actuales) => actuales.filter(
-        (reserva) => reserva.idReserva !== reservaSeleccionada.idReserva
-      ));
-      eliminarTokenGestionReserva(reservaSeleccionada.idReserva);
-      setTokensGestion((actuales) => {
-        const siguientes = { ...actuales };
-        delete siguientes[reservaSeleccionada.idReserva];
-        return siguientes;
-      });
+      setReservas((actuales) => actuales.map((reserva) => (
+        reserva.idReserva === reservaSeleccionada.idReserva
+          ? { ...reserva, estadoPago: 'CANCELADO' }
+          : reserva
+      )));
       setReservaSeleccionada(null);
-      setMensaje('La reserva se canceló y el horario quedó disponible.');
+      setMensaje('La reserva se canceló y quedó guardada en tu historial. El horario quedó disponible.');
     } catch (err) {
       console.error('Error al cancelar la reserva desde el enlace privado:', err);
       setError(err.status === 409
@@ -292,6 +303,7 @@ export function GestionReservaPage() {
 
   const fechaMinima = obtenerFechaLocal();
   const pagoPendiente = reservaSeleccionada?.estadoPago === 'PENDIENTE_VERIFICACION';
+  const tieneSesionCliente = sesionClienteIniciada || Object.keys(tokensGestion).length > 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -300,7 +312,7 @@ export function GestionReservaPage() {
         <section className="rounded-2xl bg-white p-5 sm:p-10 shadow-sm border border-slate-100">
           {cargando ? (
             <p className="text-center text-slate-600" role="status">Cargando tus reservas…</p>
-          ) : !tokenGestion ? (
+          ) : !tokenGestion && !tieneSesionCliente ? (
             <div className="mx-auto max-w-xl py-4 text-center">
               <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">Acceso privado</p>
               <h1 className="mb-3 text-3xl font-extrabold text-slate-900">Recuperar mis reservas</h1>
@@ -381,7 +393,7 @@ export function GestionReservaPage() {
               </p>
               <Link to="/" className="mt-5 inline-block text-blue-700 font-semibold hover:underline">Volver al inicio</Link>
             </div>
-          ) : error && reservas.length === 0 ? (
+          ) : error && reservas.length === 0 && !sesionClienteIniciada ? (
             <div className="text-center">
               <h1 className="text-2xl font-bold text-slate-900 mb-3">No pudimos abrir este enlace</h1>
               <p className="text-red-700 mb-6" role="alert">{error}</p>
@@ -523,6 +535,10 @@ export function GestionReservaPage() {
                   {guardando ? 'Guardando cambios…' : 'Guardar cambios'}
                 </button>
               </form>
+            ) : reservaSeleccionada.estadoPago === 'CANCELADO' ? (
+              <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+                Esta solicitud fue cancelada y se conserva aquí como parte de tu historial.
+              </p>
             ) : (
               <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
                 Los cambios de fecha u horario deben coordinarse con el administrador cuando el pago ya fue verificado.

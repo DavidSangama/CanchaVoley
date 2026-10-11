@@ -128,7 +128,7 @@ class ReservaServiceTest {
     }
 
     @Test
-    void cancellationDeletesPaymentAndReservationWhenTokenIsValidAndPaymentIsPending() throws Exception {
+    void cancellationKeepsReservationInHistoryAndReleasesItByMarkingPaymentCancelled() throws Exception {
         String token = "customer-cancellation-token";
         Reserva reserva = reservaWithToken(token);
         Pago pago = new Pago();
@@ -139,8 +139,10 @@ class ReservaServiceTest {
 
         reservaService.cancelarSolicitudCliente(42L, token);
 
-        verify(pagoRepository).deleteByReservaIdReserva(42L);
-        verify(reservaRepository).delete(reserva);
+        assertEquals(EstadoPago.CANCELADO, pago.getEstado());
+        verify(pagoRepository).save(pago);
+        verify(pagoRepository, never()).deleteByReservaIdReserva(any());
+        verify(reservaRepository, never()).delete(any(Reserva.class));
     }
 
     @Test
@@ -169,6 +171,7 @@ class ReservaServiceTest {
                 () -> reservaService.cancelarSolicitudCliente(42L, token));
 
         assertEquals(409, error.getStatusCode().value());
+        verify(pagoRepository, never()).save(any(Pago.class));
         verify(pagoRepository, never()).deleteByReservaIdReserva(any());
         verify(reservaRepository, never()).delete(any(Reserva.class));
     }

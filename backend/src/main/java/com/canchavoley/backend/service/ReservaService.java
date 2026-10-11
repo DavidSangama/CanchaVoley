@@ -116,12 +116,12 @@ public class ReservaService {
         Pago pago = pagoRepository.findByReservaIdReserva(idReserva)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud ya no está pendiente de pago."));
 
-        if (pago.getEstado() == EstadoPago.REALIZADO) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Un pago realizado no se puede cancelar desde esta página.");
+        if (pago.getEstado() != EstadoPago.PENDIENTE_VERIFICACION) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Solo se pueden cancelar reservas pendientes de verificación.");
         }
 
-        pagoRepository.deleteByReservaIdReserva(idReserva);
-        reservaRepository.delete(reserva);
+        pago.setEstado(EstadoPago.CANCELADO);
+        pagoRepository.save(pago);
     }
 
     @Transactional(readOnly = true)
