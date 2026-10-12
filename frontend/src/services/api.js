@@ -21,9 +21,12 @@ export const fetchAPI = async (endpoint, options = {}) => {
       throw new Error("Falta configurar VITE_API_URL para conectar con el backend.");
     }
 
-    const authorization = sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY);
+    const { skipAdminAuthorization = false, ...requestOptions } = options;
+    const authorization = skipAdminAuthorization
+      ? null
+      : sessionStorage.getItem(ADMIN_AUTHORIZATION_KEY);
     const response = await fetch(`${BASE_URL}${endpoint}`, {
-      ...options,
+      ...requestOptions,
       headers: {
         "Content-Type": "application/json",
         ...(authorization ? { Authorization: authorization } : {}),
@@ -42,7 +45,7 @@ export const fetchAPI = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 && authorization) {
         sessionStorage.removeItem(ADMIN_AUTHORIZATION_KEY);
       }
       const detalle = typeof respuesta === "string"
